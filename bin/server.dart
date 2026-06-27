@@ -1175,28 +1175,48 @@ late MqttServerClient mqttClient;
 // ==========================================
 // 1. DATABASE CONNECTIVITY
 // ==========================================
-Future<void> connectDB() async {
-  final endpoint = Endpoint(
-    host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
-    port: 5432,
-    database: 'neondb',
-    username: 'neondb_owner',
-    password: 'npg_mT9C4KeOaJVN',
-  );
+final _pgEndpoint = Endpoint(
+  host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
+  port: 5432,
+  database: 'neondb',
+  username: 'neondb_owner',
+  password: 'npg_mT9C4KeOaJVN',
+);
 
-  final settings = ConnectionSettings(sslMode: SslMode.require);
+final _pgSettings = ConnectionSettings(sslMode: SslMode.require);
 
-  bool connected = false;
-  while (!connected) {
+// Opens a single connection, retrying every 3s until it succeeds.
+// Neon's free-tier compute auto-suspends after a period of inactivity,
+// which silently drops any open connection — this helper is what lets
+// us open a fresh one again on demand, instead of only at server startup.
+Future<Connection> _openConnection() async {
+  while (true) {
     try {
-      conn = await Connection.open(endpoint, settings: settings);
-      listenConn = await Connection.open(endpoint, settings: settings);
-      print("Connected to PostgreSQL");
-      connected = true;
+      return await Connection.open(_pgEndpoint, settings: _pgSettings);
     } catch (e) {
       print("DB connection failed, retrying in 3s: $e");
       await Future.delayed(const Duration(seconds: 3));
     }
+  }
+}
+
+Future<void> connectDB() async {
+  conn = await _openConnection();
+  print("Connected to PostgreSQL (Query Client)");
+  listenConn = await _openConnection();
+  print("Connected to PostgreSQL (Listen Client)");
+}
+
+// Runs a query; if it fails because the connection has gone stale
+// (e.g. Neon suspended the compute and dropped it), reopens just the
+// query connection and retries the action once before giving up.
+Future<T> _withRetry<T>(Future<T> Function() action) async {
+  try {
+    return await action();
+  } catch (e) {
+    print("Query failed ($e). Reconnecting to PostgreSQL and retrying...");
+    conn = await _openConnection();
+    return await action();
   }
 }
 
@@ -1245,10 +1265,10 @@ Future<void> startPostgresListenBridge() async {
 // 4. BUSINESS LOGIC DATABASE QUERIES
 // ==========================================
 Future<Map<String, dynamic>> loginUser(String username, String password) async {
-  final result = await conn.execute(
+  final result = await _withRetry(() => conn.execute(
     Sql.named('SELECT * FROM users WHERE username=@username'),
     parameters: {'username': username.trim()},
-  );
+  ));
 
   if (result.isNotEmpty) {
     final row = result.first;
@@ -1265,7 +1285,7 @@ Future<Map<String, dynamic>> loginUser(String username, String password) async {
 Future<Map<String, dynamic>> insertMachineData(
   String motorType, String machineId, String testId, String temprature1, String temprature2, String temprature3
 ) async {
-  final result = await conn.execute(
+  final result = await _withRetry(() => conn.execute(
     Sql.named('''
       INSERT INTO data_list (motor_type, machine_id, test_id, temprature1, temprature2, temprature3)
       VALUES (@motor_type, @machine_id, @test_id, @temprature1, @temprature2, @temprature3)
@@ -1279,16 +1299,16 @@ Future<Map<String, dynamic>> insertMachineData(
       "temprature2": double.tryParse(temprature2) ?? 0.0,
       "temprature3": double.tryParse(temprature3) ?? 0.0,
     },
-  );
+  ));
 
   return {"success": true, "record": result.first.toColumnMap().toString()};
 }
 
 // Query Function to select all logs from target table data_list
 Future<List<Map<String, dynamic>>> fetchLogsFromDB() async {
-  final result = await conn.execute(
+  final result = await _withRetry(() => conn.execute(
     'SELECT id, motor_type, machine_id, test_id, temprature1, temprature2, temprature3, created_at FROM data_list ORDER BY id ASC'
-  );
+  ));
   
   return result.map((row) {
     final map = row.toColumnMap();
