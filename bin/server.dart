@@ -946,6 +946,24 @@ late MqttServerClient mqttClient;
 // ==========================================
 // 1. DATABASE CONNECTIVITY
 // ==========================================
+// Future<void> connectDB() async {
+//   final endpoint = Endpoint(
+//     host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
+//     port: 5432,
+//     database: 'neondb',
+//     username: 'neondb_owner',
+//     password: 'npg_mT9C4KeOaJVN',
+//   );
+
+//   final settings = ConnectionSettings(sslMode: SslMode.require);
+
+//   conn = await Connection.open(endpoint, settings: settings);
+//   print("Connected to PostgreSQL (Query Client)");
+
+//   listenConn = await Connection.open(endpoint, settings: settings);
+//   print("Connected to PostgreSQL (Listen Client)");
+// }
+
 Future<void> connectDB() async {
   final endpoint = Endpoint(
     host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
@@ -957,11 +975,18 @@ Future<void> connectDB() async {
 
   final settings = ConnectionSettings(sslMode: SslMode.require);
 
-  conn = await Connection.open(endpoint, settings: settings);
-  print("Connected to PostgreSQL (Query Client)");
-
-  listenConn = await Connection.open(endpoint, settings: settings);
-  print("Connected to PostgreSQL (Listen Client)");
+  bool connected = false;
+  while (!connected) {
+    try {
+      conn = await Connection.open(endpoint, settings: settings);
+      listenConn = await Connection.open(endpoint, settings: settings);
+      print("Connected to PostgreSQL");
+      connected = true;
+    } catch (e) {
+      print("DB connection failed, retrying in 3s: $e");
+      await Future.delayed(const Duration(seconds: 3));
+    }
+  }
 }
 
 // ==========================================
