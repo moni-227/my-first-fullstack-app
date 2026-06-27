@@ -1,3 +1,240 @@
+// // // // // import 'dart:convert';
+
+// // // // // import 'package:postgres/postgres.dart';
+// // // // // import 'package:shelf/shelf.dart';
+// // // // // import 'package:shelf/shelf_io.dart' as io;
+// // // // // import 'package:shelf_router/shelf_router.dart';
+// // // // // import 'package:shelf_cors_headers/shelf_cors_headers.dart';
+
+// // // // // late Connection conn;
+
+// // // // // Future<void> connectDB() async {
+// // // // //   conn = await Connection.open(
+// // // // //     Endpoint(
+// // // // //       host: 'localhost',
+// // // // //       port: 5432,
+// // // // //       database: 'Input_Logs',
+// // // // //       username: 'postgres',
+// // // // //       password: 'postgres123',
+// // // // //     ),
+// // // // //     settings: ConnectionSettings(
+// // // // //       sslMode: SslMode.disable,
+// // // // //     ),
+// // // // //   );
+
+// // // // //   print("Connected to PostgreSQL");
+// // // // // }
+
+// // // // // Future<Map<String, dynamic>> loginUser(
+// // // // //   String username,
+// // // // //   String password,
+// // // // // ) async {
+// // // // //   final result = await conn.execute(
+// // // // //     Sql.named(
+// // // // //       '''
+// // // // //       SELECT *
+// // // // //       FROM users
+// // // // //       WHERE username=@username
+// // // // //       ''',
+// // // // //     ),
+// // // // //     parameters: {
+// // // // //       'username': username.trim(),
+// // // // //     },
+// // // // //   );
+
+// // // // //   if (result.isNotEmpty) {
+// // // // //     final row = result.first;
+
+// // // // //     String dbPassword = row[2].toString();
+
+// // // // //     if (dbPassword == password) {
+// // // // //       return {
+// // // // //         "success": true,
+// // // // //         "message": "Login successful",
+// // // // //         "username": username,
+// // // // //       };
+// // // // //     }
+// // // // //   }
+
+// // // // //   return {
+// // // // //     "success": false,
+// // // // //     "message": "Invalid username or password",
+// // // // //   };
+// // // // // }
+
+// // // // // Future<Map<String, dynamic>> insertMachineData(
+// // // // //   String motorType,
+// // // // //   String machineId,
+// // // // //   String testId,
+// // // // //   String operationName,
+// // // // // ) async {
+// // // // //   final result = await conn.execute(
+// // // // //     Sql.named(
+// // // // //       '''
+// // // // //       INSERT INTO machine_data
+// // // // //       (
+// // // // //         motor_type,
+// // // // //         machine_id,
+// // // // //         test_id,
+// // // // //         operation_name
+// // // // //       )
+// // // // //       VALUES
+// // // // //       (
+// // // // //         @motor_type,
+// // // // //         @machine_id,
+// // // // //         @test_id,
+// // // // //         @operation_name
+// // // // //       )
+// // // // //       RETURNING *
+// // // // //       '''
+// // // // //     ),
+// // // // //     parameters: {
+// // // // //       "motor_type": motorType,
+// // // // //       "machine_id": machineId,
+// // // // //       "test_id": testId,
+// // // // //       "operation_name": operationName,
+// // // // //     },
+// // // // //   );
+
+// // // // //   return {
+// // // // //     "success": true,
+// // // // //     "record": result.first.toString(),
+// // // // //   };
+// // // // // }
+
+// // // // // Future<void> main() async {
+// // // // //   await connectDB();
+
+// // // // //   final router = Router();
+
+// // // // //   router.post('/login', (Request request) async {
+// // // // //     try {
+// // // // //       final body =
+// // // // //           jsonDecode(await request.readAsString());
+
+// // // // //       String username =
+// // // // //           body['username']?.toString() ?? '';
+
+// // // // //       String password =
+// // // // //           body['password']?.toString() ?? '';
+
+// // // // //       if (username.isEmpty || password.isEmpty) {
+// // // // //         return Response(
+// // // // //           400,
+// // // // //           body: jsonEncode({
+// // // // //             "message":
+// // // // //                 "Username and Password required"
+// // // // //           }),
+// // // // //           headers: {
+// // // // //             "Content-Type": "application/json"
+// // // // //           },
+// // // // //         );
+// // // // //       }
+
+// // // // //       final result =
+// // // // //           await loginUser(username, password);
+
+// // // // //       if (result["success"]) {
+// // // // //         return Response.ok(
+// // // // //           jsonEncode(result),
+// // // // //           headers: {
+// // // // //             "Content-Type": "application/json"
+// // // // //           },
+// // // // //         );
+// // // // //       }
+
+// // // // //       return Response(
+// // // // //         401,
+// // // // //         body: jsonEncode(result),
+// // // // //         headers: {
+// // // // //           "Content-Type": "application/json"
+// // // // //         },
+// // // // //       );
+// // // // //     } catch (e) {
+// // // // //       return Response.internalServerError(
+// // // // //         body: jsonEncode({
+// // // // //           "message": e.toString()
+// // // // //         }),
+// // // // //       );
+// // // // //     }
+// // // // //   });
+
+// // // // //   router.post('/add-machine-data',
+// // // // //       (Request request) async {
+// // // // //     try {
+// // // // //       final body =
+// // // // //           jsonDecode(await request.readAsString());
+
+// // // // //       String motorType =
+// // // // //           body['motor_type']?.toString() ?? '';
+
+// // // // //       String machineId =
+// // // // //           body['machine_id']?.toString() ?? '';
+
+// // // // //       String testId =
+// // // // //           body['test_id']?.toString() ?? '';
+
+// // // // //       String operationName =
+// // // // //           body['operation_name']?.toString() ?? '';
+
+// // // // //       if (motorType.isEmpty ||
+// // // // //           machineId.isEmpty ||
+// // // // //           testId.isEmpty ||
+// // // // //           operationName.isEmpty) {
+// // // // //         return Response(
+// // // // //           400,
+// // // // //           body: jsonEncode({
+// // // // //             "message":
+// // // // //                 "All fields are required"
+// // // // //           }),
+// // // // //           headers: {
+// // // // //             "Content-Type": "application/json"
+// // // // //           },
+// // // // //         );
+// // // // //       }
+
+// // // // //       final result = await insertMachineData(
+// // // // //         motorType,
+// // // // //         machineId,
+// // // // //         testId,
+// // // // //         operationName,
+// // // // //       );
+
+// // // // //       return Response(
+// // // // //         201,
+// // // // //         body: jsonEncode(result),
+// // // // //         headers: {
+// // // // //           "Content-Type": "application/json"
+// // // // //         },
+// // // // //       );
+// // // // //     } catch (e) {
+// // // // //       return Response.internalServerError(
+// // // // //         body: jsonEncode({
+// // // // //           "message": e.toString()
+// // // // //         }),
+// // // // //       );
+// // // // //     }
+// // // // //   });
+
+// // // // //   final handler = Pipeline()
+// // // // //       .addMiddleware(corsHeaders())
+// // // // //       .addMiddleware(logRequests())
+// // // // //       .addHandler(router.call);
+
+// // // // //   await io.serve(
+// // // // //     handler,
+// // // // //     '0.0.0.0',
+// // // // //     3000,
+// // // // //   );
+
+// // // // //   print(
+// // // // //     "Server running on http://localhost:3000",
+// // // // //   );
+// // // // // }
+
+
+
+
 // // // // import 'dart:convert';
 
 // // // // import 'package:postgres/postgres.dart';
@@ -62,11 +299,14 @@
 // // // //   };
 // // // // }
 
+// // // // // Updated handler function signature to accept field1 and field2 parameters
 // // // // Future<Map<String, dynamic>> insertMachineData(
 // // // //   String motorType,
 // // // //   String machineId,
 // // // //   String testId,
 // // // //   String operationName,
+// // // //   String field1,
+// // // //   String field2,
 // // // // ) async {
 // // // //   final result = await conn.execute(
 // // // //     Sql.named(
@@ -76,14 +316,18 @@
 // // // //         motor_type,
 // // // //         machine_id,
 // // // //         test_id,
-// // // //         operation_name
+// // // //         operation_name,
+// // // //         field_1,
+// // // //         field_2
 // // // //       )
 // // // //       VALUES
 // // // //       (
 // // // //         @motor_type,
 // // // //         @machine_id,
 // // // //         @test_id,
-// // // //         @operation_name
+// // // //         @operation_name,
+// // // //         @field_1,
+// // // //         @field_2
 // // // //       )
 // // // //       RETURNING *
 // // // //       '''
@@ -93,6 +337,8 @@
 // // // //       "machine_id": machineId,
 // // // //       "test_id": testId,
 // // // //       "operation_name": operationName,
+// // // //       "field_1": field1,
+// // // //       "field_2": field2,
 // // // //     },
 // // // //   );
 
@@ -109,87 +355,61 @@
 
 // // // //   router.post('/login', (Request request) async {
 // // // //     try {
-// // // //       final body =
-// // // //           jsonDecode(await request.readAsString());
+// // // //       final body = jsonDecode(await request.readAsString());
 
-// // // //       String username =
-// // // //           body['username']?.toString() ?? '';
-
-// // // //       String password =
-// // // //           body['password']?.toString() ?? '';
+// // // //       String username = body['username']?.toString() ?? '';
+// // // //       String password = body['password']?.toString() ?? '';
 
 // // // //       if (username.isEmpty || password.isEmpty) {
 // // // //         return Response(
 // // // //           400,
-// // // //           body: jsonEncode({
-// // // //             "message":
-// // // //                 "Username and Password required"
-// // // //           }),
-// // // //           headers: {
-// // // //             "Content-Type": "application/json"
-// // // //           },
+// // // //           body: jsonEncode({"message": "Username and Password required"}),
+// // // //           headers: {"Content-Type": "application/json"},
 // // // //         );
 // // // //       }
 
-// // // //       final result =
-// // // //           await loginUser(username, password);
+// // // //       final result = await loginUser(username, password);
 
 // // // //       if (result["success"]) {
 // // // //         return Response.ok(
 // // // //           jsonEncode(result),
-// // // //           headers: {
-// // // //             "Content-Type": "application/json"
-// // // //           },
+// // // //           headers: {"Content-Type": "application/json"},
 // // // //         );
 // // // //       }
 
 // // // //       return Response(
 // // // //         401,
 // // // //         body: jsonEncode(result),
-// // // //         headers: {
-// // // //           "Content-Type": "application/json"
-// // // //         },
+// // // //         headers: {"Content-Type": "application/json"},
 // // // //       );
 // // // //     } catch (e) {
 // // // //       return Response.internalServerError(
-// // // //         body: jsonEncode({
-// // // //           "message": e.toString()
-// // // //         }),
+// // // //         body: jsonEncode({"message": e.toString()}),
 // // // //       );
 // // // //     }
 // // // //   });
 
-// // // //   router.post('/add-machine-data',
-// // // //       (Request request) async {
+// // // //   router.post('/add-machine-data', (Request request) async {
 // // // //     try {
-// // // //       final body =
-// // // //           jsonDecode(await request.readAsString());
+// // // //       final body = jsonDecode(await request.readAsString());
 
-// // // //       String motorType =
-// // // //           body['motor_type']?.toString() ?? '';
-
-// // // //       String machineId =
-// // // //           body['machine_id']?.toString() ?? '';
-
-// // // //       String testId =
-// // // //           body['test_id']?.toString() ?? '';
-
-// // // //       String operationName =
-// // // //           body['operation_name']?.toString() ?? '';
+// // // //       String motorType = body['motor_type']?.toString() ?? '';
+// // // //       String machineId = body['machine_id']?.toString() ?? '';
+// // // //       String testId = body['test_id']?.toString() ?? '';
+// // // //       String operationName = body['operation_name']?.toString() ?? '';
+// // // //       String field1 = body['field_1']?.toString() ?? ''; // Captured Field 1
+// // // //       String field2 = body['field_2']?.toString() ?? ''; // Captured Field 2
 
 // // // //       if (motorType.isEmpty ||
 // // // //           machineId.isEmpty ||
 // // // //           testId.isEmpty ||
-// // // //           operationName.isEmpty) {
+// // // //           operationName.isEmpty ||
+// // // //           field1.isEmpty ||
+// // // //           field2.isEmpty) {
 // // // //         return Response(
 // // // //           400,
-// // // //           body: jsonEncode({
-// // // //             "message":
-// // // //                 "All fields are required"
-// // // //           }),
-// // // //           headers: {
-// // // //             "Content-Type": "application/json"
-// // // //           },
+// // // //           body: jsonEncode({"message": "All fields are required"}),
+// // // //           headers: {"Content-Type": "application/json"},
 // // // //         );
 // // // //       }
 
@@ -198,20 +418,18 @@
 // // // //         machineId,
 // // // //         testId,
 // // // //         operationName,
+// // // //         field1,
+// // // //         field2,
 // // // //       );
 
 // // // //       return Response(
 // // // //         201,
 // // // //         body: jsonEncode(result),
-// // // //         headers: {
-// // // //           "Content-Type": "application/json"
-// // // //         },
+// // // //         headers: {"Content-Type": "application/json"},
 // // // //       );
 // // // //     } catch (e) {
 // // // //       return Response.internalServerError(
-// // // //         body: jsonEncode({
-// // // //           "message": e.toString()
-// // // //         }),
+// // // //         body: jsonEncode({"message": e.toString()}),
 // // // //       );
 // // // //     }
 // // // //   });
@@ -221,234 +439,276 @@
 // // // //       .addMiddleware(logRequests())
 // // // //       .addHandler(router.call);
 
-// // // //   await io.serve(
-// // // //     handler,
-// // // //     '0.0.0.0',
-// // // //     3000,
-// // // //   );
+// // // //   await io.serve(handler, '0.0.0.0', 3000);
 
-// // // //   print(
-// // // //     "Server running on http://localhost:3000",
-// // // //   );
+// // // //   print("Server running on http://localhost:3000");
 // // // // }
 
 
 
 
-// // // import 'dart:convert';
 
-// // // import 'package:postgres/postgres.dart';
-// // // import 'package:shelf/shelf.dart';
-// // // import 'package:shelf/shelf_io.dart' as io;
-// // // import 'package:shelf_router/shelf_router.dart';
-// // // import 'package:shelf_cors_headers/shelf_cors_headers.dart';
+// // // // direct mqtt
 
-// // // late Connection conn;
+// // // // import 'dart:convert';
+// // // // import 'package:postgres/postgres.dart';
+// // // // import 'package:shelf/shelf.dart';
+// // // // import 'package:shelf/shelf_io.dart' as io;
+// // // // import 'package:shelf_router/shelf_router.dart';
+// // // // import 'package:shelf_cors_headers/shelf_cors_headers.dart';
+// // // // import 'package:mqtt_client/mqtt_server_client.dart';
+// // // // import 'package:mqtt_client/mqtt_client.dart';
 
-// // // Future<void> connectDB() async {
-// // //   conn = await Connection.open(
-// // //     Endpoint(
-// // //       host: 'localhost',
-// // //       port: 5432,
-// // //       database: 'Input_Logs',
-// // //       username: 'postgres',
-// // //       password: 'postgres123',
-// // //     ),
-// // //     settings: ConnectionSettings(
-// // //       sslMode: SslMode.disable,
-// // //     ),
-// // //   );
+// // // // late Connection conn;
+// // // // late MqttServerClient mqttClient;
 
-// // //   print("Connected to PostgreSQL");
-// // // }
+// // // // // ==========================================
+// // // // // 1. POSTGRESQL CONNECTION & OPERATIONS
+// // // // // ==========================================
+// // // // Future<void> connectDB() async {
+// // // //   conn = await Connection.open(
+// // // //     Endpoint(
+// // // //       host: 'localhost',
+// // // //       port: 5432,
+// // // //       database: 'Input_Logs',
+// // // //       username: 'postgres',
+// // // //       password: 'postgres123',
+// // // //     ),
+// // // //     settings: ConnectionSettings(
+// // // //       sslMode: SslMode.disable,
+// // // //     ),
+// // // //   );
 
-// // // Future<Map<String, dynamic>> loginUser(
-// // //   String username,
-// // //   String password,
-// // // ) async {
-// // //   final result = await conn.execute(
-// // //     Sql.named(
-// // //       '''
-// // //       SELECT *
-// // //       FROM users
-// // //       WHERE username=@username
-// // //       ''',
-// // //     ),
-// // //     parameters: {
-// // //       'username': username.trim(),
-// // //     },
-// // //   );
+// // // //   print("Connected to PostgreSQL");
+// // // // }
 
-// // //   if (result.isNotEmpty) {
-// // //     final row = result.first;
+// // // // Future<Map<String, dynamic>> loginUser(String username, String password) async {
+// // // //   final result = await conn.execute(
+// // // //     Sql.named(
+// // // //       '''
+// // // //       SELECT *
+// // // //       FROM users
+// // // //       WHERE username=@username
+// // // //       ''',
+// // // //     ),
+// // // //     parameters: {
+// // // //       'username': username.trim(),
+// // // //     },
+// // // //   );
 
-// // //     String dbPassword = row[2].toString();
+// // // //   if (result.isNotEmpty) {
+// // // //     final row = result.first;
+// // // //     String dbPassword = row[2].toString();
 
-// // //     if (dbPassword == password) {
-// // //       return {
-// // //         "success": true,
-// // //         "message": "Login successful",
-// // //         "username": username,
-// // //       };
-// // //     }
-// // //   }
+// // // //     if (dbPassword == password) {
+// // // //       return {
+// // // //         "success": true,
+// // // //         "message": "Login successful",
+// // // //         "username": username,
+// // // //       };
+// // // //     }
+// // // //   }
 
-// // //   return {
-// // //     "success": false,
-// // //     "message": "Invalid username or password",
-// // //   };
-// // // }
+// // // //   return {
+// // // //     "success": false,
+// // // //     "message": "Invalid username or password",
+// // // //   };
+// // // // }
 
-// // // // Updated handler function signature to accept field1 and field2 parameters
-// // // Future<Map<String, dynamic>> insertMachineData(
-// // //   String motorType,
-// // //   String machineId,
-// // //   String testId,
-// // //   String operationName,
-// // //   String field1,
-// // //   String field2,
-// // // ) async {
-// // //   final result = await conn.execute(
-// // //     Sql.named(
-// // //       '''
-// // //       INSERT INTO machine_data
-// // //       (
-// // //         motor_type,
-// // //         machine_id,
-// // //         test_id,
-// // //         operation_name,
-// // //         field_1,
-// // //         field_2
-// // //       )
-// // //       VALUES
-// // //       (
-// // //         @motor_type,
-// // //         @machine_id,
-// // //         @test_id,
-// // //         @operation_name,
-// // //         @field_1,
-// // //         @field_2
-// // //       )
-// // //       RETURNING *
-// // //       '''
-// // //     ),
-// // //     parameters: {
-// // //       "motor_type": motorType,
-// // //       "machine_id": machineId,
-// // //       "test_id": testId,
-// // //       "operation_name": operationName,
-// // //       "field_1": field1,
-// // //       "field_2": field2,
-// // //     },
-// // //   );
+// // // // Future<Map<String, dynamic>> insertMachineData(
+// // // //   String motorType,
+// // // //   String machineId,
+// // // //   String testId,
+// // // //   String operationName,
+// // // //   String field1,
+// // // //   String field2,
+// // // // ) async {
+// // // //   final result = await conn.execute(
+// // // //     Sql.named(
+// // // //       '''
+// // // //       INSERT INTO machine_data
+// // // //       (
+// // // //         motor_type,
+// // // //         machine_id,
+// // // //         test_id,
+// // // //         operation_name,
+// // // //         field_1,
+// // // //         field_2
+// // // //       )
+// // // //       VALUES
+// // // //       (
+// // // //         @motor_type,
+// // // //         @machine_id,
+// // // //         @test_id,
+// // // //         @operation_name,
+// // // //         @field_1,
+// // // //         @field_2
+// // // //       )
+// // // //       RETURNING *
+// // // //       '''
+// // // //     ),
+// // // //     parameters: {
+// // // //       "motor_type": motorType,
+// // // //       "machine_id": machineId,
+// // // //       "test_id": testId,
+// // // //       "operation_name": operationName,
+// // // //       "field_1": field1,
+// // // //       "field_2": field2,
+// // // //     },
+// // // //   );
 
-// // //   return {
-// // //     "success": true,
-// // //     "record": result.first.toString(),
-// // //   };
-// // // }
+// // // //   return {
+// // // //     "success": true,
+// // // //     "record": result.first.toString(),
+// // // //   };
+// // // // }
 
-// // // Future<void> main() async {
-// // //   await connectDB();
+// // // // // ==========================================
+// // // // // 2. MQTT BROKER PUBLISHER CONNECTION
+// // // // // ==========================================
+// // // // Future<void> connectMQTT() async {
+// // // //   mqttClient = MqttServerClient('broker.hivemq.com', 'dart_backend_publisher');
+// // // //   mqttClient.port = 1883;
+// // // //   mqttClient.logging(on: false);
+// // // //   mqttClient.keepAlivePeriod = 20;
 
-// // //   final router = Router();
+// // // //   try {
+// // // //     print('Connecting to MQTT Broker...');
+// // // //     await mqttClient.connect();
+// // // //     print('Connected to MQTT Broker successfully!');
+// // // //   } catch (e) {
+// // // //     print('MQTT Connection exception: $e');
+// // // //     mqttClient.disconnect();
+// // // //   }
+// // // // }
 
-// // //   router.post('/login', (Request request) async {
-// // //     try {
-// // //       final body = jsonDecode(await request.readAsString());
+// // // // void publishMachineData(Map<String, dynamic> data) {
+// // // //   const String topic = 'machine/metrics';
+// // // //   final builder = MqttClientPayloadBuilder();
+// // // //   builder.addString(jsonEncode(data));
 
-// // //       String username = body['username']?.toString() ?? '';
-// // //       String password = body['password']?.toString() ?? '';
+// // // //   if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
+// // // //     mqttClient.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
+// // // //     print('Published data to MQTT topic: $topic');
+// // // //   } else {
+// // // //     print('MQTT client not connected, skipping publish.');
+// // // //   }
+// // // // }
 
-// // //       if (username.isEmpty || password.isEmpty) {
-// // //         return Response(
-// // //           400,
-// // //           body: jsonEncode({"message": "Username and Password required"}),
-// // //           headers: {"Content-Type": "application/json"},
-// // //         );
-// // //       }
+// // // // // ==========================================
+// // // // // 3. MAIN SERVER ROUTING ENTRYPOINT
+// // // // // ==========================================
+// // // // Future<void> main() async {
+// // // //   await connectDB();   // This will now resolve perfectly
+// // // //   await connectMQTT(); // This will now resolve perfectly
 
-// // //       final result = await loginUser(username, password);
+// // // //   final router = Router();
 
-// // //       if (result["success"]) {
-// // //         return Response.ok(
-// // //           jsonEncode(result),
-// // //           headers: {"Content-Type": "application/json"},
-// // //         );
-// // //       }
+// // // //   router.post('/login', (Request request) async {
+// // // //     try {
+// // // //       final body = jsonDecode(await request.readAsString());
+// // // //       String username = body['username']?.toString() ?? '';
+// // // //       String password = body['password']?.toString() ?? '';
 
-// // //       return Response(
-// // //         401,
-// // //         body: jsonEncode(result),
-// // //         headers: {"Content-Type": "application/json"},
-// // //       );
-// // //     } catch (e) {
-// // //       return Response.internalServerError(
-// // //         body: jsonEncode({"message": e.toString()}),
-// // //       );
-// // //     }
-// // //   });
+// // // //       if (username.isEmpty || password.isEmpty) {
+// // // //         return Response(
+// // // //           400,
+// // // //           body: jsonEncode({"message": "Username and Password required"}),
+// // // //           headers: {"Content-Type": "application/json"},
+// // // //         );
+// // // //       }
 
-// // //   router.post('/add-machine-data', (Request request) async {
-// // //     try {
-// // //       final body = jsonDecode(await request.readAsString());
+// // // //       final result = await loginUser(username, password);
 
-// // //       String motorType = body['motor_type']?.toString() ?? '';
-// // //       String machineId = body['machine_id']?.toString() ?? '';
-// // //       String testId = body['test_id']?.toString() ?? '';
-// // //       String operationName = body['operation_name']?.toString() ?? '';
-// // //       String field1 = body['field_1']?.toString() ?? ''; // Captured Field 1
-// // //       String field2 = body['field_2']?.toString() ?? ''; // Captured Field 2
+// // // //       if (result["success"]) {
+// // // //         return Response.ok(
+// // // //           jsonEncode(result),
+// // // //           headers: {"Content-Type": "application/json"},
+// // // //         );
+// // // //       }
 
-// // //       if (motorType.isEmpty ||
-// // //           machineId.isEmpty ||
-// // //           testId.isEmpty ||
-// // //           operationName.isEmpty ||
-// // //           field1.isEmpty ||
-// // //           field2.isEmpty) {
-// // //         return Response(
-// // //           400,
-// // //           body: jsonEncode({"message": "All fields are required"}),
-// // //           headers: {"Content-Type": "application/json"},
-// // //         );
-// // //       }
+// // // //       return Response(
+// // // //         401,
+// // // //         body: jsonEncode(result),
+// // // //         headers: {"Content-Type": "application/json"},
+// // // //       );
+// // // //     } catch (e) {
+// // // //       return Response.internalServerError(
+// // // //         body: jsonEncode({"message": e.toString()}),
+// // // //       );
+// // // //     }
+// // // //   });
 
-// // //       final result = await insertMachineData(
-// // //         motorType,
-// // //         machineId,
-// // //         testId,
-// // //         operationName,
-// // //         field1,
-// // //         field2,
-// // //       );
+// // // //   router.post('/add-machine-data', (Request request) async {
+// // // //     try {
+// // // //       final body = jsonDecode(await request.readAsString());
 
-// // //       return Response(
-// // //         201,
-// // //         body: jsonEncode(result),
-// // //         headers: {"Content-Type": "application/json"},
-// // //       );
-// // //     } catch (e) {
-// // //       return Response.internalServerError(
-// // //         body: jsonEncode({"message": e.toString()}),
-// // //       );
-// // //     }
-// // //   });
+// // // //       String motorType = body['motor_type']?.toString() ?? '';
+// // // //       String machineId = body['machine_id']?.toString() ?? '';
+// // // //       String testId = body['test_id']?.toString() ?? '';
+// // // //       String operationName = body['operation_name']?.toString() ?? '';
+// // // //       String field1 = body['field_1']?.toString() ?? ''; 
+// // // //       String field2 = body['field_2']?.toString() ?? ''; 
 
-// // //   final handler = Pipeline()
-// // //       .addMiddleware(corsHeaders())
-// // //       .addMiddleware(logRequests())
-// // //       .addHandler(router.call);
+// // // //       if (motorType.isEmpty ||
+// // // //           machineId.isEmpty ||
+// // // //           testId.isEmpty ||
+// // // //           operationName.isEmpty ||
+// // // //           field1.isEmpty ||
+// // // //           field2.isEmpty) {
+// // // //         return Response(
+// // // //           400,
+// // // //           body: jsonEncode({"message": "All fields are required"}),
+// // // //           headers: {"Content-Type": "application/json"},
+// // // //         );
+// // // //       }
 
-// // //   await io.serve(handler, '0.0.0.0', 3000);
+// // // //       // 1. Insert directly into Postgres 
+// // // //       final result = await insertMachineData(
+// // // //         motorType,
+// // // //         machineId,
+// // // //         testId,
+// // // //         operationName,
+// // // //         field1,
+// // // //         field2,
+// // // //       );
 
-// // //   print("Server running on http://localhost:3000");
-// // // }
+// // // //       // 2. Publish to MQTT Broker for MongoDB Ingestion
+// // // //       publishMachineData({
+// // // //         "motor_type": motorType,
+// // // //         "machine_id": machineId,
+// // // //         "test_id": testId,
+// // // //         "operation_name": operationName,
+// // // //         "field_1": field1,
+// // // //         "field_2": field2,
+// // // //         "timestamp": DateTime.now().toIso8601String()
+// // // //       });
+
+// // // //       return Response(
+// // // //         201,
+// // // //         body: jsonEncode(result),
+// // // //         headers: {"Content-Type": "application/json"},
+// // // //       );
+// // // //     } catch (e) {
+// // // //       return Response.internalServerError(
+// // // //         body: jsonEncode({"message": e.toString()}),
+// // // //       );
+// // // //     }
+// // // //   });
+
+// // // //   final handler = Pipeline()
+// // // //       .addMiddleware(corsHeaders())
+// // // //       .addMiddleware(logRequests())
+// // // //       .addHandler(router.call);
+
+// // // //   await io.serve(handler, '0.0.0.0', 3000);
+
+// // // //   print("Server running on http://localhost:3000");
+// // // // }
 
 
 
 
-
-// // // direct mqtt
 
 // // // import 'dart:convert';
 // // // import 'package:postgres/postgres.dart';
@@ -460,40 +720,121 @@
 // // // import 'package:mqtt_client/mqtt_client.dart';
 
 // // // late Connection conn;
+// // // late Connection listenConn; // Separate connection dedicated solely to LISTEN
 // // // late MqttServerClient mqttClient;
 
 // // // // ==========================================
-// // // // 1. POSTGRESQL CONNECTION & OPERATIONS
+// // // // 1. DATABASE CONNECTIVITY
 // // // // ==========================================
 // // // Future<void> connectDB() async {
-// // //   conn = await Connection.open(
-// // //     Endpoint(
-// // //       host: 'localhost',
-// // //       port: 5432,
-// // //       database: 'Input_Logs',
-// // //       username: 'postgres',
-// // //       password: 'postgres123',
-// // //     ),
-// // //     settings: ConnectionSettings(
-// // //       sslMode: SslMode.disable,
-// // //     ),
-// // //   );
+// // //   // final endpoint = Endpoint(
+// // //   //   host: 'localhost',
+// // //   //   port: 5432,
+// // //   //   database: 'Input_Logs',
+// // //   //   username: 'postgres',
+// // //   //   password: 'postgres123',
+// // //   // );
+  
+// // //   final endpoint = Endpoint(
+// // //   host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
+// // //   port: 5432,
+// // //   database: 'neondb',
+// // //   username: 'neondb_owner',
+// // //   password: 'npg_mT9C4KeOaJVN',
+// // // );
 
-// // //   print("Connected to PostgreSQL");
+// // //   final settings = ConnectionSettings(sslMode: SslMode.require);
+
+// // //   // Connection for executing normal queries
+// // //   conn = await Connection.open(endpoint, settings: settings);
+// // //   print("Connected to PostgreSQL (Query Client)");
+
+// // //   // Persistent connection dedicated to receiving LISTEN events
+// // //   listenConn = await Connection.open(endpoint, settings: settings);
+// // //   print("Connected to PostgreSQL (Listen Client)");
 // // // }
 
+// // // // ==========================================
+// // // // 2. MQTT CLIENT PUBLISHER
+// // // // ==========================================
+// // // Future<void> connectMQTT() async {
+// // //   mqttClient = MqttServerClient('broker.hivemq.com', 'postgres_notify_bridge');
+// // //   mqttClient.port = 1883;
+// // //   mqttClient.logging(on: false);
+// // //   mqttClient.keepAlivePeriod = 20;
+
+// // //   try {
+// // //     print('Connecting to MQTT Broker...');
+// // //     await mqttClient.connect();
+// // //     print('Connected to MQTT Broker successfully!');
+// // //   } catch (e) {
+// // //     print('MQTT Connection failure: $e');
+// // //     mqttClient.disconnect();
+// // //   }
+// // // }
+
+// // // // ==========================================
+// // // // 3. POSTGRES LISTEN -> MQTT BRIDGE WORKER
+// // // // ==========================================
+// // // // Future<void> startPostgresListenBridge() async {
+// // // //   // Instruct Postgres to begin listening on our custom channel
+// // // //   await listenConn.execute('LISTEN machine_channel');
+// // // //   print("PostgreSQL background loop actively listening to channel: machine_channel");
+
+// // // //   // Stream listener that captures broadcasts continuously
+// // // //   listenConn.channels['machine_channel'].listen((notification) {
+// // // //     final String? payload = notification.payload;
+    
+// // // //     if (payload != null) {
+// // // //       print("\n[DB NOTIFY RECEIVER] New row detected! Payload: $payload");
+
+// // // //       // Forward directly over MQTT
+// // // //       if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
+// // // //         final builder = MqttClientPayloadBuilder();
+// // // //         builder.addString(payload);
+
+// // // //         mqttClient.publishMessage('machine/metrics', MqttQos.atLeastOnce, builder.payload!);
+// // // //         print("[MQTT BRIDGE] Successfully forwarded notification data to topic: machine/metrics");
+// // // //       } else {
+// // // //         print("[MQTT BRIDGE ERROR] MQTT Client offline, unable to bridge broadcast.");
+// // // //       }
+// // // //     }
+// // // //   });
+// // // // }
+
+
+// // // // ==========================================
+// // // // 3. POSTGRES LISTEN -> MQTT BRIDGE WORKER
+// // // // ==========================================
+// // // Future<void> startPostgresListenBridge() async {
+// // //   // Instruct Postgres to begin listening on our custom channel
+// // //   await listenConn.execute('LISTEN machine_channel');
+// // //   print("PostgreSQL background loop actively listening to channel: machine_channel");
+
+// // //   // In postgres v3+, the notification stream yields String directly
+// // //   listenConn.channels['machine_channel'].listen((String payload) {
+// // //     print("\n[DB NOTIFY RECEIVER] New row detected! Payload: $payload");
+
+// // //     // Forward directly over MQTT
+// // //     if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
+// // //       final builder = MqttClientPayloadBuilder();
+// // //       builder.addString(payload);
+
+// // //       mqttClient.publishMessage('machine/metrics', MqttQos.atLeastOnce, builder.payload!);
+// // //       print("[MQTT BRIDGE] Successfully forwarded notification data to topic: machine/metrics");
+// // //     } else {
+// // //       print("[MQTT BRIDGE ERROR] MQTT Client offline, unable to bridge broadcast.");
+// // //     }
+// // //   });
+// // // }
+
+// // // // ==========================================
+// // // // 4. BUSINESS LOGIC DATABASE QUERIES
+// // // // ==========================================
 // // // Future<Map<String, dynamic>> loginUser(String username, String password) async {
 // // //   final result = await conn.execute(
-// // //     Sql.named(
-// // //       '''
-// // //       SELECT *
-// // //       FROM users
-// // //       WHERE username=@username
-// // //       ''',
-// // //     ),
-// // //     parameters: {
-// // //       'username': username.trim(),
-// // //     },
+// // //     Sql.named('SELECT * FROM users WHERE username=@username'),
+// // //     parameters: {'username': username.trim()},
 // // //   );
 
 // // //   if (result.isNotEmpty) {
@@ -501,52 +842,21 @@
 // // //     String dbPassword = row[2].toString();
 
 // // //     if (dbPassword == password) {
-// // //       return {
-// // //         "success": true,
-// // //         "message": "Login successful",
-// // //         "username": username,
-// // //       };
+// // //       return {"success": true, "message": "Login successful", "username": username};
 // // //     }
 // // //   }
-
-// // //   return {
-// // //     "success": false,
-// // //     "message": "Invalid username or password",
-// // //   };
+// // //   return {"success": false, "message": "Invalid username or password"};
 // // // }
 
 // // // Future<Map<String, dynamic>> insertMachineData(
-// // //   String motorType,
-// // //   String machineId,
-// // //   String testId,
-// // //   String operationName,
-// // //   String field1,
-// // //   String field2,
+// // //   String motorType, String machineId, String testId, String operationName, String field1, String field2
 // // // ) async {
 // // //   final result = await conn.execute(
-// // //     Sql.named(
-// // //       '''
-// // //       INSERT INTO machine_data
-// // //       (
-// // //         motor_type,
-// // //         machine_id,
-// // //         test_id,
-// // //         operation_name,
-// // //         field_1,
-// // //         field_2
-// // //       )
-// // //       VALUES
-// // //       (
-// // //         @motor_type,
-// // //         @machine_id,
-// // //         @test_id,
-// // //         @operation_name,
-// // //         @field_1,
-// // //         @field_2
-// // //       )
+// // //     Sql.named('''
+// // //       INSERT INTO machine_data (motor_type, machine_id, test_id, operation_name, field_1, field_2)
+// // //       VALUES (@motor_type, @machine_id, @test_id, @operation_name, @field_1, @field_2)
 // // //       RETURNING *
-// // //       '''
-// // //     ),
+// // //     '''),
 // // //     parameters: {
 // // //       "motor_type": motorType,
 // // //       "machine_id": machineId,
@@ -557,50 +867,18 @@
 // // //     },
 // // //   );
 
-// // //   return {
-// // //     "success": true,
-// // //     "record": result.first.toString(),
-// // //   };
+// // //   return {"success": true, "record": result.first.toString()};
 // // // }
 
 // // // // ==========================================
-// // // // 2. MQTT BROKER PUBLISHER CONNECTION
-// // // // ==========================================
-// // // Future<void> connectMQTT() async {
-// // //   mqttClient = MqttServerClient('broker.hivemq.com', 'dart_backend_publisher');
-// // //   mqttClient.port = 1883;
-// // //   mqttClient.logging(on: false);
-// // //   mqttClient.keepAlivePeriod = 20;
-
-// // //   try {
-// // //     print('Connecting to MQTT Broker...');
-// // //     await mqttClient.connect();
-// // //     print('Connected to MQTT Broker successfully!');
-// // //   } catch (e) {
-// // //     print('MQTT Connection exception: $e');
-// // //     mqttClient.disconnect();
-// // //   }
-// // // }
-
-// // // void publishMachineData(Map<String, dynamic> data) {
-// // //   const String topic = 'machine/metrics';
-// // //   final builder = MqttClientPayloadBuilder();
-// // //   builder.addString(jsonEncode(data));
-
-// // //   if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
-// // //     mqttClient.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
-// // //     print('Published data to MQTT topic: $topic');
-// // //   } else {
-// // //     print('MQTT client not connected, skipping publish.');
-// // //   }
-// // // }
-
-// // // // ==========================================
-// // // // 3. MAIN SERVER ROUTING ENTRYPOINT
+// // // // 5. MAIN SERVICE DRIVER Entrypoint
 // // // // ==========================================
 // // // Future<void> main() async {
-// // //   await connectDB();   // This will now resolve perfectly
-// // //   await connectMQTT(); // This will now resolve perfectly
+// // //   await connectDB();
+// // //   await connectMQTT();
+  
+// // //   // Launch the asynchronous Listen -> Publish loop runner
+// // //   startPostgresListenBridge(); 
 
 // // //   final router = Router();
 
@@ -611,31 +889,13 @@
 // // //       String password = body['password']?.toString() ?? '';
 
 // // //       if (username.isEmpty || password.isEmpty) {
-// // //         return Response(
-// // //           400,
-// // //           body: jsonEncode({"message": "Username and Password required"}),
-// // //           headers: {"Content-Type": "application/json"},
-// // //         );
+// // //         return Response(400, body: jsonEncode({"message": "Username/Password required"}), headers: {"Content-Type": "application/json"});
 // // //       }
 
 // // //       final result = await loginUser(username, password);
-
-// // //       if (result["success"]) {
-// // //         return Response.ok(
-// // //           jsonEncode(result),
-// // //           headers: {"Content-Type": "application/json"},
-// // //         );
-// // //       }
-
-// // //       return Response(
-// // //         401,
-// // //         body: jsonEncode(result),
-// // //         headers: {"Content-Type": "application/json"},
-// // //       );
+// // //       return Response(result["success"] ? 200 : 401, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
 // // //     } catch (e) {
-// // //       return Response.internalServerError(
-// // //         body: jsonEncode({"message": e.toString()}),
-// // //       );
+// // //       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
 // // //     }
 // // //   });
 
@@ -647,66 +907,26 @@
 // // //       String machineId = body['machine_id']?.toString() ?? '';
 // // //       String testId = body['test_id']?.toString() ?? '';
 // // //       String operationName = body['operation_name']?.toString() ?? '';
-// // //       String field1 = body['field_1']?.toString() ?? ''; 
-// // //       String field2 = body['field_2']?.toString() ?? ''; 
+// // //       String field1 = body['field_1']?.toString() ?? '';
+// // //       String field2 = body['field_2']?.toString() ?? '';
 
-// // //       if (motorType.isEmpty ||
-// // //           machineId.isEmpty ||
-// // //           testId.isEmpty ||
-// // //           operationName.isEmpty ||
-// // //           field1.isEmpty ||
-// // //           field2.isEmpty) {
-// // //         return Response(
-// // //           400,
-// // //           body: jsonEncode({"message": "All fields are required"}),
-// // //           headers: {"Content-Type": "application/json"},
-// // //         );
+// // //       if (motorType.isEmpty || machineId.isEmpty || testId.isEmpty || operationName.isEmpty || field1.isEmpty || field2.isEmpty) {
+// // //         return Response(400, body: jsonEncode({"message": "All fields are required"}), headers: {"Content-Type": "application/json"});
 // // //       }
 
-// // //       // 1. Insert directly into Postgres 
-// // //       final result = await insertMachineData(
-// // //         motorType,
-// // //         machineId,
-// // //         testId,
-// // //         operationName,
-// // //         field1,
-// // //         field2,
-// // //       );
+// // //       // Perform standard SQL insert. The DB trigger executes the broadcast pipeline.
+// // //       final result = await insertMachineData(motorType, machineId, testId, operationName, field1, field2);
 
-// // //       // 2. Publish to MQTT Broker for MongoDB Ingestion
-// // //       publishMachineData({
-// // //         "motor_type": motorType,
-// // //         "machine_id": machineId,
-// // //         "test_id": testId,
-// // //         "operation_name": operationName,
-// // //         "field_1": field1,
-// // //         "field_2": field2,
-// // //         "timestamp": DateTime.now().toIso8601String()
-// // //       });
-
-// // //       return Response(
-// // //         201,
-// // //         body: jsonEncode(result),
-// // //         headers: {"Content-Type": "application/json"},
-// // //       );
+// // //       return Response(201, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
 // // //     } catch (e) {
-// // //       return Response.internalServerError(
-// // //         body: jsonEncode({"message": e.toString()}),
-// // //       );
+// // //       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
 // // //     }
 // // //   });
 
-// // //   final handler = Pipeline()
-// // //       .addMiddleware(corsHeaders())
-// // //       .addMiddleware(logRequests())
-// // //       .addHandler(router.call);
-
+// // //   final handler = Pipeline().addMiddleware(corsHeaders()).addMiddleware(logRequests()).addHandler(router.call);
 // // //   await io.serve(handler, '0.0.0.0', 3000);
-
-// // //   print("Server running on http://localhost:3000");
+// // //   print("Server engine operational on http://localhost:3000");
 // // // }
-
-
 
 
 
@@ -720,38 +940,53 @@
 // // import 'package:mqtt_client/mqtt_client.dart';
 
 // // late Connection conn;
-// // late Connection listenConn; // Separate connection dedicated solely to LISTEN
+// // late Connection listenConn; 
 // // late MqttServerClient mqttClient;
 
 // // // ==========================================
 // // // 1. DATABASE CONNECTIVITY
 // // // ==========================================
+// // // Future<void> connectDB() async {
+// // //   final endpoint = Endpoint(
+// // //     host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
+// // //     port: 5432,
+// // //     database: 'neondb',
+// // //     username: 'neondb_owner',
+// // //     password: 'npg_mT9C4KeOaJVN',
+// // //   );
+
+// // //   final settings = ConnectionSettings(sslMode: SslMode.require);
+
+// // //   conn = await Connection.open(endpoint, settings: settings);
+// // //   print("Connected to PostgreSQL (Query Client)");
+
+// // //   listenConn = await Connection.open(endpoint, settings: settings);
+// // //   print("Connected to PostgreSQL (Listen Client)");
+// // // }
+
 // // Future<void> connectDB() async {
-// //   // final endpoint = Endpoint(
-// //   //   host: 'localhost',
-// //   //   port: 5432,
-// //   //   database: 'Input_Logs',
-// //   //   username: 'postgres',
-// //   //   password: 'postgres123',
-// //   // );
-  
 // //   final endpoint = Endpoint(
-// //   host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
-// //   port: 5432,
-// //   database: 'neondb',
-// //   username: 'neondb_owner',
-// //   password: 'npg_mT9C4KeOaJVN',
-// // );
+// //     host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
+// //     port: 5432,
+// //     database: 'neondb',
+// //     username: 'neondb_owner',
+// //     password: 'npg_mT9C4KeOaJVN',
+// //   );
 
 // //   final settings = ConnectionSettings(sslMode: SslMode.require);
 
-// //   // Connection for executing normal queries
-// //   conn = await Connection.open(endpoint, settings: settings);
-// //   print("Connected to PostgreSQL (Query Client)");
-
-// //   // Persistent connection dedicated to receiving LISTEN events
-// //   listenConn = await Connection.open(endpoint, settings: settings);
-// //   print("Connected to PostgreSQL (Listen Client)");
+// //   bool connected = false;
+// //   while (!connected) {
+// //     try {
+// //       conn = await Connection.open(endpoint, settings: settings);
+// //       listenConn = await Connection.open(endpoint, settings: settings);
+// //       print("Connected to PostgreSQL");
+// //       connected = true;
+// //     } catch (e) {
+// //       print("DB connection failed, retrying in 3s: $e");
+// //       await Future.delayed(const Duration(seconds: 3));
+// //     }
+// //   }
 // // }
 
 // // // ==========================================
@@ -776,46 +1011,13 @@
 // // // ==========================================
 // // // 3. POSTGRES LISTEN -> MQTT BRIDGE WORKER
 // // // ==========================================
-// // // Future<void> startPostgresListenBridge() async {
-// // //   // Instruct Postgres to begin listening on our custom channel
-// // //   await listenConn.execute('LISTEN machine_channel');
-// // //   print("PostgreSQL background loop actively listening to channel: machine_channel");
-
-// // //   // Stream listener that captures broadcasts continuously
-// // //   listenConn.channels['machine_channel'].listen((notification) {
-// // //     final String? payload = notification.payload;
-    
-// // //     if (payload != null) {
-// // //       print("\n[DB NOTIFY RECEIVER] New row detected! Payload: $payload");
-
-// // //       // Forward directly over MQTT
-// // //       if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
-// // //         final builder = MqttClientPayloadBuilder();
-// // //         builder.addString(payload);
-
-// // //         mqttClient.publishMessage('machine/metrics', MqttQos.atLeastOnce, builder.payload!);
-// // //         print("[MQTT BRIDGE] Successfully forwarded notification data to topic: machine/metrics");
-// // //       } else {
-// // //         print("[MQTT BRIDGE ERROR] MQTT Client offline, unable to bridge broadcast.");
-// // //       }
-// // //     }
-// // //   });
-// // // }
-
-
-// // // ==========================================
-// // // 3. POSTGRES LISTEN -> MQTT BRIDGE WORKER
-// // // ==========================================
 // // Future<void> startPostgresListenBridge() async {
-// //   // Instruct Postgres to begin listening on our custom channel
 // //   await listenConn.execute('LISTEN machine_channel');
 // //   print("PostgreSQL background loop actively listening to channel: machine_channel");
 
-// //   // In postgres v3+, the notification stream yields String directly
 // //   listenConn.channels['machine_channel'].listen((String payload) {
 // //     print("\n[DB NOTIFY RECEIVER] New row detected! Payload: $payload");
 
-// //     // Forward directly over MQTT
 // //     if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
 // //       final builder = MqttClientPayloadBuilder();
 // //       builder.addString(payload);
@@ -862,12 +1064,33 @@
 // //       "machine_id": machineId,
 // //       "test_id": testId,
 // //       "operation_name": operationName,
-// //       "field_1": field1,
-// //       "field_2": field2,
+// //       "field_1": double.tryParse(field1) ?? 0.0,
+// //       "field_2": double.tryParse(field2) ?? 0.0,
 // //     },
 // //   );
 
-// //   return {"success": true, "record": result.first.toString()};
+// //   return {"success": true, "record": result.first.toColumnMap().toString()};
+// // }
+
+// // // Query Function to select all logs from target table data_lsit
+// // Future<List<Map<String, dynamic>>> fetchLogsFromDB() async {
+// //   final result = await conn.execute(
+// //     'SELECT id, motor_type, machine_id, test_id, operation_name, field_1, field_2, created_at FROM data_lsit ORDER BY id ASC'
+// //   );
+  
+// //   return result.map((row) {
+// //     final map = row.toColumnMap();
+// //     return {
+// //       "id": map["id"],
+// //       "motor_type": map["motor_type"],
+// //       "machine_id": map["machine_id"],
+// //       "test_id": map["test_id"],
+// //       "operation_name": map["operation_name"],
+// //       "field_1": map["field_1"],
+// //       "field_2": map["field_2"],
+// //       "created_at": map["created_at"]?.toString(),
+// //     };
+// //   }).toList();
 // // }
 
 // // // ==========================================
@@ -877,7 +1100,6 @@
 // //   await connectDB();
 // //   await connectMQTT();
   
-// //   // Launch the asynchronous Listen -> Publish loop runner
 // //   startPostgresListenBridge(); 
 
 // //   final router = Router();
@@ -914,10 +1136,18 @@
 // //         return Response(400, body: jsonEncode({"message": "All fields are required"}), headers: {"Content-Type": "application/json"});
 // //       }
 
-// //       // Perform standard SQL insert. The DB trigger executes the broadcast pipeline.
 // //       final result = await insertMachineData(motorType, machineId, testId, operationName, field1, field2);
-
 // //       return Response(201, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
+// //     } catch (e) {
+// //       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
+// //     }
+// //   });
+
+// //   // GET Endpoint targeting data_lsit 
+// //   router.get('/get-machine-data', (Request request) async {
+// //     try {
+// //       final logs = await fetchLogsFromDB();
+// //       return Response.ok(jsonEncode(logs), headers: {"Content-Type": "application/json"});
 // //     } catch (e) {
 // //       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
 // //     }
@@ -927,7 +1157,6 @@
 // //   await io.serve(handler, '0.0.0.0', 3000);
 // //   print("Server engine operational on http://localhost:3000");
 // // }
-
 
 
 // import 'dart:convert';
@@ -946,46 +1175,48 @@
 // // ==========================================
 // // 1. DATABASE CONNECTIVITY
 // // ==========================================
-// // Future<void> connectDB() async {
-// //   final endpoint = Endpoint(
-// //     host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
-// //     port: 5432,
-// //     database: 'neondb',
-// //     username: 'neondb_owner',
-// //     password: 'npg_mT9C4KeOaJVN',
-// //   );
+// final _pgEndpoint = Endpoint(
+//   host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
+//   port: 5432,
+//   database: 'neondb',
+//   username: 'neondb_owner',
+//   password: 'npg_mT9C4KeOaJVN',
+// );
 
-// //   final settings = ConnectionSettings(sslMode: SslMode.require);
+// final _pgSettings = ConnectionSettings(sslMode: SslMode.require);
 
-// //   conn = await Connection.open(endpoint, settings: settings);
-// //   print("Connected to PostgreSQL (Query Client)");
-
-// //   listenConn = await Connection.open(endpoint, settings: settings);
-// //   print("Connected to PostgreSQL (Listen Client)");
-// // }
-
-// Future<void> connectDB() async {
-//   final endpoint = Endpoint(
-//     host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
-//     port: 5432,
-//     database: 'neondb',
-//     username: 'neondb_owner',
-//     password: 'npg_mT9C4KeOaJVN',
-//   );
-
-//   final settings = ConnectionSettings(sslMode: SslMode.require);
-
-//   bool connected = false;
-//   while (!connected) {
+// // Opens a single connection, retrying every 3s until it succeeds.
+// // Neon's free-tier compute auto-suspends after a period of inactivity,
+// // which silently drops any open connection — this helper is what lets
+// // us open a fresh one again on demand, instead of only at server startup.
+// Future<Connection> _openConnection() async {
+//   while (true) {
 //     try {
-//       conn = await Connection.open(endpoint, settings: settings);
-//       listenConn = await Connection.open(endpoint, settings: settings);
-//       print("Connected to PostgreSQL");
-//       connected = true;
+//       return await Connection.open(_pgEndpoint, settings: _pgSettings);
 //     } catch (e) {
 //       print("DB connection failed, retrying in 3s: $e");
 //       await Future.delayed(const Duration(seconds: 3));
 //     }
+//   }
+// }
+
+// Future<void> connectDB() async {
+//   conn = await _openConnection();
+//   print("Connected to PostgreSQL (Query Client)");
+//   listenConn = await _openConnection();
+//   print("Connected to PostgreSQL (Listen Client)");
+// }
+
+// // Runs a query; if it fails because the connection has gone stale
+// // (e.g. Neon suspended the compute and dropped it), reopens just the
+// // query connection and retries the action once before giving up.
+// Future<T> _withRetry<T>(Future<T> Function() action) async {
+//   try {
+//     return await action();
+//   } catch (e) {
+//     print("Query failed ($e). Reconnecting to PostgreSQL and retrying...");
+//     conn = await _openConnection();
+//     return await action();
 //   }
 // }
 
@@ -1034,10 +1265,10 @@
 // // 4. BUSINESS LOGIC DATABASE QUERIES
 // // ==========================================
 // Future<Map<String, dynamic>> loginUser(String username, String password) async {
-//   final result = await conn.execute(
+//   final result = await _withRetry(() => conn.execute(
 //     Sql.named('SELECT * FROM users WHERE username=@username'),
 //     parameters: {'username': username.trim()},
-//   );
+//   ));
 
 //   if (result.isNotEmpty) {
 //     final row = result.first;
@@ -1050,33 +1281,34 @@
 //   return {"success": false, "message": "Invalid username or password"};
 // }
 
+// // Inserts a new row into data_list (motor_type, machine_id, test_id, temprature1, temprature2, temprature3)
 // Future<Map<String, dynamic>> insertMachineData(
-//   String motorType, String machineId, String testId, String operationName, String field1, String field2
+//   String motorType, String machineId, String testId, String temprature1, String temprature2, String temprature3
 // ) async {
-//   final result = await conn.execute(
+//   final result = await _withRetry(() => conn.execute(
 //     Sql.named('''
-//       INSERT INTO machine_data (motor_type, machine_id, test_id, operation_name, field_1, field_2)
-//       VALUES (@motor_type, @machine_id, @test_id, @operation_name, @field_1, @field_2)
+//       INSERT INTO data_list (motor_type, machine_id, test_id, temprature1, temprature2, temprature3)
+//       VALUES (@motor_type, @machine_id, @test_id, @temprature1, @temprature2, @temprature3)
 //       RETURNING *
 //     '''),
 //     parameters: {
 //       "motor_type": motorType,
 //       "machine_id": machineId,
 //       "test_id": testId,
-//       "operation_name": operationName,
-//       "field_1": double.tryParse(field1) ?? 0.0,
-//       "field_2": double.tryParse(field2) ?? 0.0,
+//       "temprature1": double.tryParse(temprature1) ?? 0.0,
+//       "temprature2": double.tryParse(temprature2) ?? 0.0,
+//       "temprature3": double.tryParse(temprature3) ?? 0.0,
 //     },
-//   );
+//   ));
 
 //   return {"success": true, "record": result.first.toColumnMap().toString()};
 // }
 
-// // Query Function to select all logs from target table data_lsit
+// // Query Function to select all logs from target table data_list
 // Future<List<Map<String, dynamic>>> fetchLogsFromDB() async {
-//   final result = await conn.execute(
-//     'SELECT id, motor_type, machine_id, test_id, operation_name, field_1, field_2, created_at FROM data_lsit ORDER BY id ASC'
-//   );
+//   final result = await _withRetry(() => conn.execute(
+//     'SELECT id, motor_type, machine_id, test_id, temprature1, temprature2, temprature3, created_at FROM data_list ORDER BY id ASC'
+//   ));
   
 //   return result.map((row) {
 //     final map = row.toColumnMap();
@@ -1085,9 +1317,9 @@
 //       "motor_type": map["motor_type"],
 //       "machine_id": map["machine_id"],
 //       "test_id": map["test_id"],
-//       "operation_name": map["operation_name"],
-//       "field_1": map["field_1"],
-//       "field_2": map["field_2"],
+//       "temprature1": map["temprature1"],
+//       "temprature2": map["temprature2"],
+//       "temprature3": map["temprature3"],
 //       "created_at": map["created_at"]?.toString(),
 //     };
 //   }).toList();
@@ -1128,22 +1360,22 @@
 //       String motorType = body['motor_type']?.toString() ?? '';
 //       String machineId = body['machine_id']?.toString() ?? '';
 //       String testId = body['test_id']?.toString() ?? '';
-//       String operationName = body['operation_name']?.toString() ?? '';
-//       String field1 = body['field_1']?.toString() ?? '';
-//       String field2 = body['field_2']?.toString() ?? '';
+//       String temprature1 = body['temprature1']?.toString() ?? '';
+//       String temprature2 = body['temprature2']?.toString() ?? '';
+//       String temprature3 = body['temprature3']?.toString() ?? '';
 
-//       if (motorType.isEmpty || machineId.isEmpty || testId.isEmpty || operationName.isEmpty || field1.isEmpty || field2.isEmpty) {
+//       if (motorType.isEmpty || machineId.isEmpty || testId.isEmpty || temprature1.isEmpty || temprature2.isEmpty || temprature3.isEmpty) {
 //         return Response(400, body: jsonEncode({"message": "All fields are required"}), headers: {"Content-Type": "application/json"});
 //       }
 
-//       final result = await insertMachineData(motorType, machineId, testId, operationName, field1, field2);
+//       final result = await insertMachineData(motorType, machineId, testId, temprature1, temprature2, temprature3);
 //       return Response(201, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
 //     } catch (e) {
 //       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
 //     }
 //   });
 
-//   // GET Endpoint targeting data_lsit 
+//   // GET Endpoint targeting data_list
 //   router.get('/get-machine-data', (Request request) async {
 //     try {
 //       final logs = await fetchLogsFromDB();
@@ -1159,6 +1391,7 @@
 // }
 
 
+
 import 'dart:convert';
 import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
@@ -1169,7 +1402,7 @@ import 'package:mqtt_client/mqtt_server_client.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 
 late Connection conn;
-late Connection listenConn; 
+late Connection listenConn;
 late MqttServerClient mqttClient;
 
 // ==========================================
@@ -1185,10 +1418,6 @@ final _pgEndpoint = Endpoint(
 
 final _pgSettings = ConnectionSettings(sslMode: SslMode.require);
 
-// Opens a single connection, retrying every 3s until it succeeds.
-// Neon's free-tier compute auto-suspends after a period of inactivity,
-// which silently drops any open connection — this helper is what lets
-// us open a fresh one again on demand, instead of only at server startup.
 Future<Connection> _openConnection() async {
   while (true) {
     try {
@@ -1207,9 +1436,6 @@ Future<void> connectDB() async {
   print("Connected to PostgreSQL (Listen Client)");
 }
 
-// Runs a query; if it fails because the connection has gone stale
-// (e.g. Neon suspended the compute and dropped it), reopens just the
-// query connection and retries the action once before giving up.
 Future<T> _withRetry<T>(Future<T> Function() action) async {
   try {
     return await action();
@@ -1273,7 +1499,6 @@ Future<Map<String, dynamic>> loginUser(String username, String password) async {
   if (result.isNotEmpty) {
     final row = result.first;
     String dbPassword = row[2].toString();
-
     if (dbPassword == password) {
       return {"success": true, "message": "Login successful", "username": username};
     }
@@ -1281,35 +1506,41 @@ Future<Map<String, dynamic>> loginUser(String username, String password) async {
   return {"success": false, "message": "Invalid username or password"};
 }
 
-// Inserts a new row into data_list (motor_type, machine_id, test_id, temprature1, temprature2, temprature3)
+// Inserts a new row into machine_data
+// Columns: motor_type, machine_id, test_id, operation_name, field_1, field_2
 Future<Map<String, dynamic>> insertMachineData(
-  String motorType, String machineId, String testId, String temprature1, String temprature2, String temprature3
+  String motorType,
+  String machineId,
+  String testId,
+  String operationName,
+  double field1,
+  double field2,
 ) async {
   final result = await _withRetry(() => conn.execute(
     Sql.named('''
-      INSERT INTO data_list (motor_type, machine_id, test_id, temprature1, temprature2, temprature3)
-      VALUES (@motor_type, @machine_id, @test_id, @temprature1, @temprature2, @temprature3)
+      INSERT INTO machine_data (motor_type, machine_id, test_id, operation_name, field_1, field_2)
+      VALUES (@motor_type, @machine_id, @test_id, @operation_name, @field_1, @field_2)
       RETURNING *
     '''),
     parameters: {
       "motor_type": motorType,
       "machine_id": machineId,
       "test_id": testId,
-      "temprature1": double.tryParse(temprature1) ?? 0.0,
-      "temprature2": double.tryParse(temprature2) ?? 0.0,
-      "temprature3": double.tryParse(temprature3) ?? 0.0,
+      "operation_name": operationName,
+      "field_1": field1,
+      "field_2": field2,
     },
   ));
 
   return {"success": true, "record": result.first.toColumnMap().toString()};
 }
 
-// Query Function to select all logs from target table data_list
-Future<List<Map<String, dynamic>>> fetchLogsFromDB() async {
+// Query all logs from machine_data
+Future<List<Map<String, dynamic>>> fetchMachineData() async {
   final result = await _withRetry(() => conn.execute(
-    'SELECT id, motor_type, machine_id, test_id, temprature1, temprature2, temprature3, created_at FROM data_list ORDER BY id ASC'
+    'SELECT id, motor_type, machine_id, test_id, operation_name, field_1, field_2, created_at FROM machine_data ORDER BY id ASC',
   ));
-  
+
   return result.map((row) {
     final map = row.toColumnMap();
     return {
@@ -1317,9 +1548,9 @@ Future<List<Map<String, dynamic>>> fetchLogsFromDB() async {
       "motor_type": map["motor_type"],
       "machine_id": map["machine_id"],
       "test_id": map["test_id"],
-      "temprature1": map["temprature1"],
-      "temprature2": map["temprature2"],
-      "temprature3": map["temprature3"],
+      "operation_name": map["operation_name"],
+      "field_1": map["field_1"],
+      "field_2": map["field_2"],
       "created_at": map["created_at"]?.toString(),
     };
   }).toList();
@@ -1331,11 +1562,12 @@ Future<List<Map<String, dynamic>>> fetchLogsFromDB() async {
 Future<void> main() async {
   await connectDB();
   await connectMQTT();
-  
-  startPostgresListenBridge(); 
+
+  startPostgresListenBridge();
 
   final router = Router();
 
+  // POST /login
   router.post('/login', (Request request) async {
     try {
       final body = jsonDecode(await request.readAsString());
@@ -1343,49 +1575,63 @@ Future<void> main() async {
       String password = body['password']?.toString() ?? '';
 
       if (username.isEmpty || password.isEmpty) {
-        return Response(400, body: jsonEncode({"message": "Username/Password required"}), headers: {"Content-Type": "application/json"});
+        return Response(400,
+            body: jsonEncode({"message": "Username/Password required"}),
+            headers: {"Content-Type": "application/json"});
       }
 
       final result = await loginUser(username, password);
-      return Response(result["success"] ? 200 : 401, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
+      return Response(result["success"] ? 200 : 401,
+          body: jsonEncode(result),
+          headers: {"Content-Type": "application/json"});
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
     }
   });
 
+  // POST /add-machine-data — inserts into machine_data table
   router.post('/add-machine-data', (Request request) async {
     try {
       final body = jsonDecode(await request.readAsString());
 
-      String motorType = body['motor_type']?.toString() ?? '';
-      String machineId = body['machine_id']?.toString() ?? '';
-      String testId = body['test_id']?.toString() ?? '';
-      String temprature1 = body['temprature1']?.toString() ?? '';
-      String temprature2 = body['temprature2']?.toString() ?? '';
-      String temprature3 = body['temprature3']?.toString() ?? '';
+      String motorType     = body['motor_type']?.toString() ?? '';
+      String machineId     = body['machine_id']?.toString() ?? '';
+      String testId        = body['test_id']?.toString() ?? '';
+      String operationName = body['operation_name']?.toString() ?? '';
+      double field1        = double.tryParse(body['field_1']?.toString() ?? '') ?? 0.0;
+      double field2        = double.tryParse(body['field_2']?.toString() ?? '') ?? 0.0;
 
-      if (motorType.isEmpty || machineId.isEmpty || testId.isEmpty || temprature1.isEmpty || temprature2.isEmpty || temprature3.isEmpty) {
-        return Response(400, body: jsonEncode({"message": "All fields are required"}), headers: {"Content-Type": "application/json"});
+      if (motorType.isEmpty || machineId.isEmpty || testId.isEmpty || operationName.isEmpty) {
+        return Response(400,
+            body: jsonEncode({"message": "motor_type, machine_id, test_id, and operation_name are required"}),
+            headers: {"Content-Type": "application/json"});
       }
 
-      final result = await insertMachineData(motorType, machineId, testId, temprature1, temprature2, temprature3);
-      return Response(201, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
+      final result = await insertMachineData(motorType, machineId, testId, operationName, field1, field2);
+      return Response(201,
+          body: jsonEncode(result),
+          headers: {"Content-Type": "application/json"});
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
     }
   });
 
-  // GET Endpoint targeting data_list
+  // GET /get-machine-data — fetches all rows from machine_data
   router.get('/get-machine-data', (Request request) async {
     try {
-      final logs = await fetchLogsFromDB();
-      return Response.ok(jsonEncode(logs), headers: {"Content-Type": "application/json"});
+      final logs = await fetchMachineData();
+      return Response.ok(jsonEncode(logs),
+          headers: {"Content-Type": "application/json"});
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
     }
   });
 
-  final handler = Pipeline().addMiddleware(corsHeaders()).addMiddleware(logRequests()).addHandler(router.call);
+  final handler = Pipeline()
+      .addMiddleware(corsHeaders())
+      .addMiddleware(logRequests())
+      .addHandler(router.call);
+
   await io.serve(handler, '0.0.0.0', 3000);
   print("Server engine operational on http://localhost:3000");
 }
