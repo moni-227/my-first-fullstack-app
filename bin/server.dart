@@ -1637,6 +1637,674 @@
 // }
 
 
+
+
+
+
+
+
+
+// import 'dart:convert';
+// import 'package:postgres/postgres.dart';
+// import 'package:shelf/shelf.dart';
+// import 'package:shelf/shelf_io.dart' as io;
+// import 'package:shelf_router/shelf_router.dart';
+// import 'package:shelf_cors_headers/shelf_cors_headers.dart';
+// import 'package:mqtt_client/mqtt_server_client.dart';
+// import 'package:mqtt_client/mqtt_client.dart';
+
+// late Connection conn;
+// late Connection listenConn;  
+// late MqttServerClient mqttClient;
+
+// // ==========================================
+// // 1. DATABASE CONNECTIVITY
+// // ==========================================
+// final _pgEndpoint = Endpoint(
+//   host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
+//   port: 5432,
+//   database: 'neondb',
+//   username: 'neondb_owner',
+//   password: 'npg_mT9C4KeOaJVN',
+// );
+
+// final _pgSettings = ConnectionSettings(sslMode: SslMode.require);
+
+// // Opens a single connection, retrying every 3s until it succeeds.
+// // Neon's free-tier compute auto-suspends after a period of inactivity,
+// // which silently drops any open connection — this helper is what lets
+// // us open a fresh one again on demand, instead of only at server startup.
+// Future<Connection> _openConnection() async {
+//   while (true) {
+//     try {
+//       return await Connection.open(_pgEndpoint, settings: _pgSettings);
+//     } catch (e) {
+//       print("DB connection failed, retrying in 3s: $e");
+//       await Future.delayed(const Duration(seconds: 3));
+//     }
+//   }
+// }
+
+// Future<void> connectDB() async {
+//   conn = await _openConnection();
+//   print("Connected to PostgreSQL (Query Client)");
+//   listenConn = await _openConnection();
+//   print("Connected to PostgreSQL (Listen Client)");
+// }
+
+// // Runs a query; if it fails because the connection has gone stale
+// // (e.g. Neon suspended the compute and dropped it), reopens just the
+// // query connection and retries the action once before giving up.
+// Future<T> _withRetry<T>(Future<T> Function() action) async {
+//   try {
+//     return await action();
+//   } catch (e) {
+//     print("Query failed ($e). Reconnecting to PostgreSQL and retrying...");
+//     conn = await _openConnection();
+//     return await action();
+//   }
+// }
+
+// // ==========================================
+// // 2. MQTT CLIENT PUBLISHER
+// // ==========================================
+// Future<void> connectMQTT() async {
+//   mqttClient = MqttServerClient('broker.hivemq.com', 'postgres_notify_bridge');
+//   mqttClient.port = 1883;
+//   mqttClient.logging(on: false);
+//   mqttClient.keepAlivePeriod = 20;
+
+//   try {
+//     print('Connecting to MQTT Broker...');
+//     await mqttClient.connect();
+//     print('Connected to MQTT Broker successfully!');
+//   } catch (e) {
+//     print('MQTT Connection failure: $e');
+//     mqttClient.disconnect();
+//   }
+// }
+
+// // ==========================================
+// // 3. POSTGRES LISTEN -> MQTT BRIDGE WORKER
+// // ==========================================
+// Future<void> startPostgresListenBridge() async {
+//   await listenConn.execute('LISTEN machine_channel');
+//   print("PostgreSQL background loop actively listening to channel: machine_channel");
+
+//   listenConn.channels['machine_channel'].listen((String payload) {
+//     print("\n[DB NOTIFY RECEIVER] New row detected! Payload: $payload");
+
+//     if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
+//       final builder = MqttClientPayloadBuilder();
+//       builder.addString(payload);
+
+//       mqttClient.publishMessage('machine/metrics', MqttQos.atLeastOnce, builder.payload!);
+//       print("[MQTT BRIDGE] Successfully forwarded notification data to topic: machine/metrics");
+//     } else {
+//       print("[MQTT BRIDGE ERROR] MQTT Client offline, unable to bridge broadcast.");
+//     }
+//   });
+// }
+
+// // ==========================================
+// // 4. BUSINESS LOGIC DATABASE QUERIES
+// // ==========================================
+// Future<Map<String, dynamic>> loginUser(String username, String password) async {
+//   final result = await _withRetry(() => conn.execute(
+//     Sql.named('SELECT * FROM users WHERE username=@username'),
+//     parameters: {'username': username.trim()},
+//   ));
+
+//   if (result.isNotEmpty) {
+//     final row = result.first;
+//     String dbPassword = row[2].toString();
+
+//     if (dbPassword == password) {
+//       return {"success": true, "message": "Login successful", "username": username};
+//     }
+//   }
+//   return {"success": false, "message": "Invalid username or password"};
+// }
+
+// // Inserts a new row into data_list (motor_type, machine_id, test_id, temprature1, temprature2, temprature3)
+// Future<Map<String, dynamic>> insertMachineData(
+//   String motorType, String machineId, String testId, String temprature1, String temprature2, String temprature3
+// ) async {
+//   final result = await _withRetry(() => conn.execute(
+//     Sql.named('''
+//       INSERT INTO data_list (motor_type, machine_id, test_id, temprature1, temprature2, temprature3)
+//       VALUES (@motor_type, @machine_id, @test_id, @temprature1, @temprature2, @temprature3)
+//       RETURNING *
+//     '''),
+//     parameters: {
+//       "motor_type": motorType,
+//       "machine_id": machineId,
+//       "test_id": testId,
+//       "temprature1": double.tryParse(temprature1) ?? 0.0,
+//       "temprature2": double.tryParse(temprature2) ?? 0.0,
+//       "temprature3": double.tryParse(temprature3) ?? 0.0,
+//     },
+//   ));
+
+//   return {"success": true, "record": result.first.toColumnMap().toString()};
+// }
+
+// // Query Function to select all logs from target table data_list
+// Future<List<Map<String, dynamic>>> fetchLogsFromDB() async {
+//   final result = await _withRetry(() => conn.execute(
+//     'SELECT id, motor_type, machine_id, test_id, temprature1, temprature2, temprature3, created_at FROM data_list ORDER BY id ASC'
+//   ));
+  
+//   return result.map((row) {
+//     final map = row.toColumnMap();
+//     return {
+//       "id": map["id"],
+//       "motor_type": map["motor_type"],
+//       "machine_id": map["machine_id"],
+//       "test_id": map["test_id"],
+//       "temprature1": map["temprature1"],
+//       "temprature2": map["temprature2"],
+//       "temprature3": map["temprature3"],
+//       "created_at": map["created_at"]?.toString(),
+//     };
+//   }).toList();
+// }
+
+// // ------------------------------------------
+// // SEPARATE TABLE: machine_data
+// // (motor_type, machine_id, test_id, operation_name, field_1, field_2)
+// // This is a completely independent table/endpoint pair from data_list above —
+// // it powers the Log Entry form only. The dashboard keeps reading data_list.
+// // ------------------------------------------
+
+// // Inserts a new row into machine_data (motor_type, machine_id, test_id, operation_name, field_1, field_2)
+// Future<Map<String, dynamic>> insertMachineRecord(
+//   String motorType, String machineId, String testId, String operationName, String field1, String field2
+// ) async {
+//   final result = await _withRetry(() => conn.execute(
+//     Sql.named('''
+//       INSERT INTO machine_data (motor_type, machine_id, test_id, operation_name, field_1, field_2)
+//       VALUES (@motor_type, @machine_id, @test_id, @operation_name, @field_1, @field_2)
+//       RETURNING *
+//     '''),
+//     parameters: {
+//       "motor_type": motorType,
+//       "machine_id": machineId,
+//       "test_id": testId,
+//       "operation_name": operationName,
+//       "field_1": field1,
+//       "field_2": field2,
+//     },
+//   ));
+
+//   return {"success": true, "record": result.first.toColumnMap().toString()};
+// }
+
+// // Query Function to select all rows from target table machine_data
+// Future<List<Map<String, dynamic>>> fetchMachineRecordsFromDB() async {
+//   final result = await _withRetry(() => conn.execute(
+//     'SELECT id, motor_type, machine_id, test_id, operation_name, field_1, field_2, created_at FROM machine_data ORDER BY id ASC'
+//   ));
+
+//   return result.map((row) {
+//     final map = row.toColumnMap();
+//     return {
+//       "id": map["id"],
+//       "motor_type": map["motor_type"],
+//       "machine_id": map["machine_id"],
+//       "test_id": map["test_id"],
+//       "operation_name": map["operation_name"],
+//       "field_1": map["field_1"],
+//       "field_2": map["field_2"],
+//       "created_at": map["created_at"]?.toString(),
+//     };
+//   }).toList();
+// }
+
+// // ==========================================
+// // 5. MAIN SERVICE DRIVER Entrypoint
+// // ==========================================
+// Future<void> main() async {
+//   await connectDB();
+//   await connectMQTT();
+  
+//   startPostgresListenBridge(); 
+
+//   final router = Router();
+
+//   router.post('/login', (Request request) async {
+//     try {
+//       final body = jsonDecode(await request.readAsString());
+//       String username = body['username']?.toString() ?? '';
+//       String password = body['password']?.toString() ?? '';
+
+//       if (username.isEmpty || password.isEmpty) {
+//         return Response(400, body: jsonEncode({"message": "Username/Password required"}), headers: {"Content-Type": "application/json"});
+//       }
+
+//       final result = await loginUser(username, password);
+//       return Response(result["success"] ? 200 : 401, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
+//     } catch (e) {
+//       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
+//     }
+//   });
+
+//   router.post('/add-machine-data', (Request request) async {
+//     try {
+//       final body = jsonDecode(await request.readAsString());
+
+//       String motorType = body['motor_type']?.toString() ?? '';
+//       String machineId = body['machine_id']?.toString() ?? '';
+//       String testId = body['test_id']?.toString() ?? '';
+//       String temprature1 = body['temprature1']?.toString() ?? '';
+//       String temprature2 = body['temprature2']?.toString() ?? '';
+//       String temprature3 = body['temprature3']?.toString() ?? '';
+
+//       if (motorType.isEmpty || machineId.isEmpty || testId.isEmpty || temprature1.isEmpty || temprature2.isEmpty || temprature3.isEmpty) {
+//         return Response(400, body: jsonEncode({"message": "All fields are required"}), headers: {"Content-Type": "application/json"});
+//       }
+
+//       final result = await insertMachineData(motorType, machineId, testId, temprature1, temprature2, temprature3);
+//       return Response(201, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
+//     } catch (e) {
+//       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
+//     }
+//   });
+
+//   // GET Endpoint targeting data_list
+//   router.get('/get-machine-data', (Request request) async {
+//     try {
+//       final logs = await fetchLogsFromDB();
+//       return Response.ok(jsonEncode(logs), headers: {"Content-Type": "application/json"});
+//     } catch (e) {
+//       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
+//     }
+//   });
+
+//   // ------------------------------------------
+//   // SEPARATE TABLE ROUTES: machine_data
+//   // Used only by the Log Entry form — data_list/dashboard routes above are untouched.
+//   // ------------------------------------------
+//   router.post('/add-machine-record', (Request request) async {
+//     try {
+//       final body = jsonDecode(await request.readAsString());
+
+//       String motorType = body['motor_type']?.toString() ?? '';
+//       String machineId = body['machine_id']?.toString() ?? '';
+//       String testId = body['test_id']?.toString() ?? '';
+//       String operationName = body['operation_name']?.toString() ?? '';
+//       String field1 = body['field_1']?.toString() ?? '';
+//       String field2 = body['field_2']?.toString() ?? '';
+
+//       if (motorType.isEmpty || machineId.isEmpty || testId.isEmpty || operationName.isEmpty || field1.isEmpty || field2.isEmpty) {
+//         return Response(400, body: jsonEncode({"message": "All fields are required"}), headers: {"Content-Type": "application/json"});
+//       }
+
+//       final result = await insertMachineRecord(motorType, machineId, testId, operationName, field1, field2);
+//       return Response(201, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
+//     } catch (e) {
+//       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
+//     }
+//   });
+
+//   // GET Endpoint targeting machine_data
+//   router.get('/get-machine-records', (Request request) async {
+//     try {
+//       final logs = await fetchMachineRecordsFromDB();
+//       return Response.ok(jsonEncode(logs), headers: {"Content-Type": "application/json"});
+//     } catch (e) {
+//       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
+//     }
+//   });
+
+//   final handler = Pipeline().addMiddleware(corsHeaders()).addMiddleware(logRequests()).addHandler(router.call);
+//   await io.serve(handler, '0.0.0.0', 3000);
+//   print("Server engine operational on http://localhost:3000");
+// }
+
+
+
+// import 'dart:async';
+// import 'dart:convert';
+// import 'package:postgres/postgres.dart';
+// import 'package:shelf/shelf.dart';
+// import 'package:shelf/shelf_io.dart' as io;
+// import 'package:shelf_router/shelf_router.dart';
+// import 'package:shelf_cors_headers/shelf_cors_headers.dart';
+// import 'package:mqtt_client/mqtt_server_client.dart';
+// import 'package:mqtt_client/mqtt_client.dart';
+
+// late Connection conn;
+// late Connection listenConn; 
+// late MqttServerClient mqttClient;
+
+// // ==========================================
+// // 1. DATABASE CONNECTIVITY (fully local — no cloud)
+// // ==========================================
+// final _pgEndpoint = Endpoint(
+//   host: '192.168.50.167',
+//   port: 5432,
+//   database: 'Railway',
+//   username: 'postgres',
+//   password: 'postgres123',
+// );
+
+// final _pgSettings = ConnectionSettings(sslMode: SslMode.disable, connectTimeout: const Duration(seconds: 5));
+
+// // Opens a single connection, retrying every 3s until it succeeds.
+// // On localhost the most common reason this fails is simply that the
+// // PostgreSQL Windows service hasn't started yet — this keeps retrying
+// // until it's up, so you don't have to manually restart the Dart server.
+// Future<Connection> _openConnection() async {
+//   while (true) {
+//     try {
+//       return await Connection.open(_pgEndpoint, settings: _pgSettings);
+//     } catch (e) {
+//       print("DB connection failed, retrying in 3s: $e");
+//       print("  (Is the local PostgreSQL service running? Check services.msc → postgresql-x64-...)");
+//       await Future.delayed(const Duration(seconds: 3));
+//     }
+//   }
+// }
+
+// Future<void> connectDB() async {
+//   conn = await _openConnection();
+//   print("Connected to PostgreSQL (Query Client)");
+//   listenConn = await _openConnection();
+//   print("Connected to PostgreSQL (Listen Client)");
+// }
+
+// // Runs a query; if it fails because the connection has gone stale,
+// // reopens just the query connection and retries the action once before giving up.
+// Future<T> _withRetry<T>(Future<T> Function() action) async {
+//   try {
+//     return await action();
+//   } catch (e) {
+//     print("Query failed ($e). Reconnecting to PostgreSQL and retrying...");
+//     conn = await _openConnection();
+//     return await action();
+//   }
+// }
+
+// // ==========================================
+// // 2. MQTT CLIENT PUBLISHER
+// // ==========================================
+// Future<void> connectMQTT() async {
+//   mqttClient = MqttServerClient('broker.hivemq.com', 'postgres_notify_bridge');
+//   mqttClient.port = 1883;
+//   mqttClient.logging(on: false);
+//   mqttClient.keepAlivePeriod = 20;
+//   mqttClient.connectTimeoutPeriod = 8000; // ms — fail fast instead of hanging on a blocked/slow network
+
+//   try {
+//     print('Connecting to MQTT Broker...');
+//     await mqttClient.connect();
+//     print('Connected to MQTT Broker successfully!');
+//   } catch (e) {
+//     print('MQTT Connection failure: $e');
+//     mqttClient.disconnect();
+//   }
+// }
+
+// // ==========================================
+// // 3. POSTGRES LISTEN -> MQTT BRIDGE WORKER
+// // ==========================================
+// Future<void> startPostgresListenBridge() async {
+//   await listenConn.execute('LISTEN machine_channel');
+//   print("PostgreSQL background loop actively listening to channel: machine_channel");
+
+//   listenConn.channels['machine_channel'].listen((String payload) {
+//     print("\n[DB NOTIFY RECEIVER] New row detected! Payload: $payload");
+
+//     if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
+//       final builder = MqttClientPayloadBuilder();
+//       builder.addString(payload);
+
+//       mqttClient.publishMessage('machine/metrics', MqttQos.atLeastOnce, builder.payload!);
+//       print("[MQTT BRIDGE] Successfully forwarded notification data to topic: machine/metrics");
+//     } else {
+//       print("[MQTT BRIDGE ERROR] MQTT Client offline, unable to bridge broadcast.");
+//     }
+//   });
+// }
+
+// // ==========================================
+// // 4. BUSINESS LOGIC DATABASE QUERIES
+// // ==========================================
+// Future<Map<String, dynamic>> loginUser(String username, String password) async {
+//   final result = await _withRetry(() => conn.execute(
+//     Sql.named('SELECT * FROM users WHERE username=@username'),
+//     parameters: {'username': username.trim()},
+//   ));
+
+//   if (result.isNotEmpty) {
+//     final row = result.first;
+//     String dbPassword = row[2].toString();
+
+//     if (dbPassword == password) {
+//       return {"success": true, "message": "Login successful", "username": username};
+//     }
+//   }
+//   return {"success": false, "message": "Invalid username or password"};
+// }
+
+// // Inserts a new row into data_list (motor_type, machine_id, test_id, temprature1, temprature2, temprature3)
+// Future<Map<String, dynamic>> insertMachineData(
+//   String motorType, String machineId, String testId, String temprature1, String temprature2, String temprature3
+// ) async {
+//   final result = await _withRetry(() => conn.execute(
+//     Sql.named('''
+//       INSERT INTO data_list (motor_type, machine_id, test_id, temprature1, temprature2, temprature3)
+//       VALUES (@motor_type, @machine_id, @test_id, @temprature1, @temprature2, @temprature3)
+//       RETURNING *
+//     '''),
+//     parameters: {
+//       "motor_type": motorType,
+//       "machine_id": machineId,
+//       "test_id": testId,
+//       "temprature1": double.tryParse(temprature1) ?? 0.0,
+//       "temprature2": double.tryParse(temprature2) ?? 0.0,
+//       "temprature3": double.tryParse(temprature3) ?? 0.0,
+//     },
+//   ));
+
+//   return {"success": true, "record": result.first.toColumnMap().toString()};
+// }
+
+// // Query Function to select all logs from target table data_list
+// Future<List<Map<String, dynamic>>> fetchLogsFromDB() async {
+//   final result = await _withRetry(() => conn.execute(
+//     'SELECT id, motor_type, machine_id, test_id, temprature1, temprature2, temprature3, created_at FROM data_list ORDER BY id ASC'
+//   ));
+  
+//   return result.map((row) {
+//     final map = row.toColumnMap();
+//     return {
+//       "id": map["id"],
+//       "motor_type": map["motor_type"],
+//       "machine_id": map["machine_id"],
+//       "test_id": map["test_id"],
+//       "temprature1": map["temprature1"],
+//       "temprature2": map["temprature2"],
+//       "temprature3": map["temprature3"],
+//       "created_at": map["created_at"]?.toString(),
+//     };
+//   }).toList();
+// }
+
+// // ------------------------------------------
+// // SEPARATE TABLE: machine_data
+// // (motor_type, machine_id, test_id, operation_name, field_1, field_2)
+// // This is a completely independent table/endpoint pair from data_list above —
+// // it powers the Log Entry form only. The dashboard keeps reading data_list.
+// // ------------------------------------------
+
+// // Inserts a new row into machine_data (motor_type, machine_id, test_id, operation_name, field_1, field_2)
+// Future<Map<String, dynamic>> insertMachineRecord(
+//   String motorType, String machineId, String testId, String operationName, String field1, String field2
+// ) async {
+//   final result = await _withRetry(() => conn.execute(
+//     Sql.named('''
+//       INSERT INTO machine_data (motor_type, machine_id, test_id, operation_name, field_1, field_2)
+//       VALUES (@motor_type, @machine_id, @test_id, @operation_name, @field_1, @field_2)
+//       RETURNING *
+//     '''),
+//     parameters: {
+//       "motor_type": motorType,
+//       "machine_id": machineId,
+//       "test_id": testId,
+//       "operation_name": operationName,
+//       "field_1": field1,
+//       "field_2": field2,
+//     },
+//   ));
+
+//   return {"success": true, "record": result.first.toColumnMap().toString()};
+// }
+
+// // Query Function to select all rows from target table machine_data
+// Future<List<Map<String, dynamic>>> fetchMachineRecordsFromDB() async {
+//   final result = await _withRetry(() => conn.execute(
+//     'SELECT id, motor_type, machine_id, test_id, operation_name, field_1, field_2, created_at FROM machine_data ORDER BY id ASC'
+//   ));
+
+//   return result.map((row) {
+//     final map = row.toColumnMap();
+//     return {
+//       "id": map["id"],
+//       "motor_type": map["motor_type"],
+//       "machine_id": map["machine_id"],
+//       "test_id": map["test_id"],
+//       "operation_name": map["operation_name"],
+//       "field_1": map["field_1"],
+//       "field_2": map["field_2"],
+//       "created_at": map["created_at"]?.toString(),
+//     };
+//   }).toList();
+// }
+
+// // ==========================================
+// // 5. MAIN SERVICE DRIVER Entrypoint
+// // ==========================================
+// Future<void> main() async {
+//   // Only Postgres is required for login/dashboard/form routes to work,
+//   // so that's the only thing we block server startup on.
+//   await connectDB();
+
+//   final router = Router();
+
+//   router.post('/login', (Request request) async {
+//     try {
+//       final body = jsonDecode(await request.readAsString());
+//       String username = body['username']?.toString() ?? '';
+//       String password = body['password']?.toString() ?? '';
+
+//       if (username.isEmpty || password.isEmpty) {
+//         return Response(400, body: jsonEncode({"message": "Username/Password required"}), headers: {"Content-Type": "application/json"});
+//       }
+
+//       final result = await loginUser(username, password);
+//       return Response(result["success"] ? 200 : 401, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
+//     } catch (e) {
+//       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
+//     }
+//   });
+
+//   router.post('/add-machine-data', (Request request) async {
+//     try {
+//       final body = jsonDecode(await request.readAsString());
+
+//       String motorType = body['motor_type']?.toString() ?? '';
+//       String machineId = body['machine_id']?.toString() ?? '';
+//       String testId = body['test_id']?.toString() ?? '';
+//       String temprature1 = body['temprature1']?.toString() ?? '';
+//       String temprature2 = body['temprature2']?.toString() ?? '';
+//       String temprature3 = body['temprature3']?.toString() ?? '';
+
+//       if (motorType.isEmpty || machineId.isEmpty || testId.isEmpty || temprature1.isEmpty || temprature2.isEmpty || temprature3.isEmpty) {
+//         return Response(400, body: jsonEncode({"message": "All fields are required"}), headers: {"Content-Type": "application/json"});
+//       }
+
+//       final result = await insertMachineData(motorType, machineId, testId, temprature1, temprature2, temprature3);
+//       return Response(201, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
+//     } catch (e) {
+//       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
+//     }
+//   });
+
+//   // GET Endpoint targeting data_list
+//   router.get('/get-machine-data', (Request request) async {
+//     try {
+//       final logs = await fetchLogsFromDB();
+//       return Response.ok(jsonEncode(logs), headers: {"Content-Type": "application/json"});
+//     } catch (e) {
+//       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
+//     }
+//   });
+
+//   // ------------------------------------------
+//   // SEPARATE TABLE ROUTES: machine_data
+//   // Used only by the Log Entry form — data_list/dashboard routes above are untouched.
+//   // ------------------------------------------
+//   router.post('/add-machine-record', (Request request) async {
+//     try {
+//       final body = jsonDecode(await request.readAsString());
+
+//       String motorType = body['motor_type']?.toString() ?? '';
+//       String machineId = body['machine_id']?.toString() ?? '';
+//       String testId = body['test_id']?.toString() ?? '';
+//       String operationName = body['operation_name']?.toString() ?? '';
+//       String field1 = body['field_1']?.toString() ?? '';
+//       String field2 = body['field_2']?.toString() ?? '';
+
+//       if (motorType.isEmpty || machineId.isEmpty || testId.isEmpty || operationName.isEmpty || field1.isEmpty || field2.isEmpty) {
+//         return Response(400, body: jsonEncode({"message": "All fields are required"}), headers: {"Content-Type": "application/json"});
+//       }
+
+//       final result = await insertMachineRecord(motorType, machineId, testId, operationName, field1, field2);
+//       return Response(201, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
+//     } catch (e) {
+//       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
+//     }
+//   });
+
+//   // GET Endpoint targeting machine_data
+//   router.get('/get-machine-records', (Request request) async {
+//     try {
+//       final logs = await fetchMachineRecordsFromDB();
+//       return Response.ok(jsonEncode(logs), headers: {"Content-Type": "application/json"});
+//     } catch (e) {
+//       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
+//     }
+//   });
+
+//   final handler = Pipeline().addMiddleware(corsHeaders()).addMiddleware(logRequests()).addHandler(router.call);
+//   await io.serve(handler, '0.0.0.0', 3000);
+//   print("Server engine operational on http://localhost:3000");
+
+//   // Login, the form, and the dashboard never depend on this — it's purely
+//   // for the live MQTT telemetry bridge, so it runs in the background and
+//   // can never block (or re-introduce a multi-minute delay on) the routes above.
+//   unawaited(_startRealtimeBridgeInBackground());
+// }
+
+// Future<void> _startRealtimeBridgeInBackground() async {
+//   try {
+//     await connectMQTT();
+//     if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
+//       await startPostgresListenBridge();
+//     } else {
+//       print("Skipping Postgres->MQTT bridge — MQTT broker unreachable right now.");
+//     }
+//   } catch (e) {
+//     print("Realtime bridge failed to start (non-fatal, login/dashboard unaffected): $e");
+//   }
+// }
+
+
+
+
+import 'dart:async';
 import 'dart:convert';
 import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
@@ -1651,7 +2319,7 @@ late Connection listenConn;
 late MqttServerClient mqttClient;
 
 // ==========================================
-// 1. DATABASE CONNECTIVITY
+// 1. DATABASE CONNECTIVITY (Neon — cloud Postgres)
 // ==========================================
 final _pgEndpoint = Endpoint(
   host: 'ep-purple-shape-aopnomz6-pooler.c-2.ap-southeast-1.aws.neon.tech',
@@ -1661,18 +2329,22 @@ final _pgEndpoint = Endpoint(
   password: 'npg_mT9C4KeOaJVN',
 );
 
-final _pgSettings = ConnectionSettings(sslMode: SslMode.require);
+// Neon requires SSL — connections without it are rejected outright, unlike
+// the local setup this replaces.
+final _pgSettings = ConnectionSettings(sslMode: SslMode.require, connectTimeout: const Duration(seconds: 10));
 
 // Opens a single connection, retrying every 3s until it succeeds.
-// Neon's free-tier compute auto-suspends after a period of inactivity,
-// which silently drops any open connection — this helper is what lets
-// us open a fresh one again on demand, instead of only at server startup.
+// Neon's free tier auto-suspends the database after a period of
+// inactivity — the first connection after a quiet spell can take a few
+// seconds while it wakes back up, so this keeps retrying instead of
+// giving up after one failed attempt.
 Future<Connection> _openConnection() async {
   while (true) {
     try {
       return await Connection.open(_pgEndpoint, settings: _pgSettings);
     } catch (e) {
       print("DB connection failed, retrying in 3s: $e");
+      print("  (If this persists, check your internet connection and the project status on the Neon dashboard.)");
       await Future.delayed(const Duration(seconds: 3));
     }
   }
@@ -1685,9 +2357,8 @@ Future<void> connectDB() async {
   print("Connected to PostgreSQL (Listen Client)");
 }
 
-// Runs a query; if it fails because the connection has gone stale
-// (e.g. Neon suspended the compute and dropped it), reopens just the
-// query connection and retries the action once before giving up.
+// Runs a query; if it fails because the connection has gone stale,
+// reopens just the query connection and retries the action once before giving up.
 Future<T> _withRetry<T>(Future<T> Function() action) async {
   try {
     return await action();
@@ -1706,6 +2377,7 @@ Future<void> connectMQTT() async {
   mqttClient.port = 1883;
   mqttClient.logging(on: false);
   mqttClient.keepAlivePeriod = 20;
+  mqttClient.connectTimeoutPeriod = 8000; // ms — fail fast instead of hanging on a blocked/slow network
 
   try {
     print('Connecting to MQTT Broker...');
@@ -1805,19 +2477,20 @@ Future<List<Map<String, dynamic>>> fetchLogsFromDB() async {
 
 // ------------------------------------------
 // SEPARATE TABLE: machine_data
-// (motor_type, machine_id, test_id, operation_name, field_1, field_2)
+// (motor_type, machine_id, test_id, operation_name, field_1, field_2, status)
 // This is a completely independent table/endpoint pair from data_list above —
 // it powers the Log Entry form only. The dashboard keeps reading data_list.
 // ------------------------------------------
 
-// Inserts a new row into machine_data (motor_type, machine_id, test_id, operation_name, field_1, field_2)
+// Inserts a new row into machine_data (motor_type, machine_id, test_id, operation_name, field_1, field_2, status)
+// status: 1 = Start, 0 = Stop
 Future<Map<String, dynamic>> insertMachineRecord(
-  String motorType, String machineId, String testId, String operationName, String field1, String field2
+  String motorType, String machineId, String testId, String operationName, String field1, String field2, int status
 ) async {
   final result = await _withRetry(() => conn.execute(
     Sql.named('''
-      INSERT INTO machine_data (motor_type, machine_id, test_id, operation_name, field_1, field_2)
-      VALUES (@motor_type, @machine_id, @test_id, @operation_name, @field_1, @field_2)
+      INSERT INTO machine_data (motor_type, machine_id, test_id, operation_name, field_1, field_2, status)
+      VALUES (@motor_type, @machine_id, @test_id, @operation_name, @field_1, @field_2, @status)
       RETURNING *
     '''),
     parameters: {
@@ -1827,6 +2500,7 @@ Future<Map<String, dynamic>> insertMachineRecord(
       "operation_name": operationName,
       "field_1": field1,
       "field_2": field2,
+      "status": status,
     },
   ));
 
@@ -1836,7 +2510,7 @@ Future<Map<String, dynamic>> insertMachineRecord(
 // Query Function to select all rows from target table machine_data
 Future<List<Map<String, dynamic>>> fetchMachineRecordsFromDB() async {
   final result = await _withRetry(() => conn.execute(
-    'SELECT id, motor_type, machine_id, test_id, operation_name, field_1, field_2, created_at FROM machine_data ORDER BY id ASC'
+    'SELECT id, motor_type, machine_id, test_id, operation_name, field_1, field_2, status, created_at FROM machine_data ORDER BY id ASC'
   ));
 
   return result.map((row) {
@@ -1849,6 +2523,7 @@ Future<List<Map<String, dynamic>>> fetchMachineRecordsFromDB() async {
       "operation_name": map["operation_name"],
       "field_1": map["field_1"],
       "field_2": map["field_2"],
+      "status": map["status"],
       "created_at": map["created_at"]?.toString(),
     };
   }).toList();
@@ -1858,10 +2533,9 @@ Future<List<Map<String, dynamic>>> fetchMachineRecordsFromDB() async {
 // 5. MAIN SERVICE DRIVER Entrypoint
 // ==========================================
 Future<void> main() async {
+  // Only Postgres is required for login/dashboard/form routes to work,
+  // so that's the only thing we block server startup on.
   await connectDB();
-  await connectMQTT();
-  
-  startPostgresListenBridge(); 
 
   final router = Router();
 
@@ -1928,12 +2602,14 @@ Future<void> main() async {
       String operationName = body['operation_name']?.toString() ?? '';
       String field1 = body['field_1']?.toString() ?? '';
       String field2 = body['field_2']?.toString() ?? '';
+      // status: 1 = Start, 0 = Stop. Defaults to 1 if missing for backward compatibility.
+      int status = int.tryParse(body['status']?.toString() ?? '') ?? 1;
 
       if (motorType.isEmpty || machineId.isEmpty || testId.isEmpty || operationName.isEmpty || field1.isEmpty || field2.isEmpty) {
         return Response(400, body: jsonEncode({"message": "All fields are required"}), headers: {"Content-Type": "application/json"});
       }
 
-      final result = await insertMachineRecord(motorType, machineId, testId, operationName, field1, field2);
+      final result = await insertMachineRecord(motorType, machineId, testId, operationName, field1, field2, status);
       return Response(201, body: jsonEncode(result), headers: {"Content-Type": "application/json"});
     } catch (e) {
       return Response.internalServerError(body: jsonEncode({"message": e.toString()}));
@@ -1952,5 +2628,23 @@ Future<void> main() async {
 
   final handler = Pipeline().addMiddleware(corsHeaders()).addMiddleware(logRequests()).addHandler(router.call);
   await io.serve(handler, '0.0.0.0', 3000);
-  print("Server engine operational on http://localhost:3000");
+  print("Server engine operational on http://Neon:3000");
+
+  // Login, the form, and the dashboard never depend on this — it's purely
+  // for the live MQTT telemetry bridge, so it runs in the background and
+  // can never block (or re-introduce a multi-minute delay on) the routes above.
+  unawaited(_startRealtimeBridgeInBackground());
+}
+
+Future<void> _startRealtimeBridgeInBackground() async {
+  try {
+    await connectMQTT();
+    if (mqttClient.connectionStatus!.state == MqttConnectionState.connected) {
+      await startPostgresListenBridge();
+    } else {
+      print("Skipping Postgres->MQTT bridge — MQTT broker unreachable right now.");
+    }
+  } catch (e) {
+    print("Realtime bridge failed to start (non-fatal, login/dashboard unaffected): $e");
+  }
 }
