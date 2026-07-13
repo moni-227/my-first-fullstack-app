@@ -5090,47 +5090,9 @@ const String _mongoUri =
 // resilience behavior as the old _openConnection() for Neon (Atlas free
 // tier doesn't auto-suspend the way Neon's does, but a transient network
 // blip on first boot is still worth retrying through).
-// A shared Future pointer to track an ongoing reconnection attempt across async frames.
-Future<Db>? _reconnectFuture;
-// Future<Db> _openConnection() async {
-//   while (true) {
-//     try {
-//       final database = await Db.create(_mongoUri);
-//       await database.open();
-//       return database;
-//     } catch (e) {
-//       print("DB connection failed, retrying in 3s: $e");
-//       print("  (If this persists, check your internet connection and the cluster status on the Atlas dashboard.)");
-//       await Future.delayed(const Duration(seconds: 3));
-//     }
-//   }
-// }
-
-// Future<void> connectDB() async {
-//   db = await _openConnection();
-//   print("Connected to MongoDB (database: ${db.databaseName})");
-// }
-
-// // Runs a query; if it fails because the connection has gone stale,
-// // reopens the connection and retries the action once before giving up.
-// Future<T> _withRetry<T>(Future<T> Function() action) async {
-//   try {
-//     return await action();
-//   } catch (e) {
-//     print("Query failed ($e). Reconnecting to MongoDB and retrying...");
-//     db = await _openConnection();
-//     return await action();
-//   }
-// }
-
 Future<Db> _openConnection() async {
   while (true) {
     try {
-      // Clean up the old dead instance if it exists to prevent leaking sockets
-      try {
-        await db.close();
-      } catch (_) {}
-
       final database = await Db.create(_mongoUri);
       await database.open();
       return database;
@@ -5147,27 +5109,17 @@ Future<void> connectDB() async {
   print("Connected to MongoDB (database: ${db.databaseName})");
 }
 
-// Thread-safe reconnection gatekeeper
+// Runs a query; if it fails because the connection has gone stale,
+// reopens the connection and retries the action once before giving up.
 Future<T> _withRetry<T>(Future<T> Function() action) async {
   try {
     return await action();
   } catch (e) {
-    print("Query failed ($e). Coordinated reconnection layer activated...");
-    
-    // If a connection attempt is already underway, piggyback off that existing future
-    _reconnectFuture ??= _openConnection();
-    
-    try {
-      final freshDb = await _reconnectFuture!;
-      db = freshDb; // Reassign global state safely once fully connected
-    } finally {
-      // Clear the pointer so subsequent failures in the future can trigger a new recovery pass
-      _reconnectFuture = null; 
-    }
-    
-    print("Reconnection complete. Retrying original database query operation...");
+    print("Query failed ($e). Reconnecting to MongoDB and retrying...");
+    db = await _openConnection();
     return await action();
   }
+}
 
 // ==========================================
 // 2. MQTT CLIENT PUBLISHER
